@@ -1,41 +1,30 @@
 """
 PANDA Proxy — Servidor seguro para el Radar de Oportunidades
-Seguridad: CORS restringido + token secreto + rate limiting + whitelist de modelos
+Soporta: Claude (Anthropic) + Gemini (Google) con formato unificado
+Seguridad: CORS + token secreto + rate limiting + whitelist de modelos
 """
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 import httpx, json, os, time
 from collections import defaultdict
 
 app = FastAPI(title="PANDA Proxy", docs_url=None, redoc_url=None)
 
-# ════════════════════════════════════════
-# CONFIGURACIÓN DE SEGURIDAD
-# ════════════════════════════════════════
-
-# API key de Anthropic (variable de entorno en Render — NUNCA en el código)
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-
-# Token secreto: solo las peticiones con este token son aceptadas
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 PANDA_SECRET = os.environ.get("PANDA_SECRET", "")
-
-# Dominio permitido (tu GitHub Pages)
 ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "https://cmbermudezs1-hash.github.io")
 
-# Modelos permitidos (evita que usen modelos caros sin tu permiso)
 ALLOWED_MODELS = {
     "claude-haiku-4-5-20251001",
     "claude-sonnet-4-6",
     "claude-opus-4-6",
+    "gemini-2.0-flash",
 }
 
-# Rate limiting: máximo de peticiones por minuto
 MAX_REQUESTS_PER_MINUTE = int(os.environ.get("MAX_RPM", "15"))
 
-# ════════════════════════════════════════
-# CORS: solo acepta peticiones desde tu dominio
-# ════════════════════════════════════════
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[ALLOWED_ORIGIN, "http://localhost:8000", "http://127.0.0.1:8000", "null"],
@@ -44,12 +33,9 @@ app.add_middleware(
     max_age=3600,
 )
 
-# ════════════════════════════════════════
-# RATE LIMITER (en memoria)
-# ════════════════════════════════════════
 request_log = defaultdict(list)
 
-def check_rate_limit(ip: str) -> bool:
+def check_rate_limit(ip):
     now = time.time()
     window = [t for t in request_log[ip] if now - t < 60]
     request_log[ip] = window
@@ -58,69 +44,44 @@ def check_rate_limit(ip: str) -> bool:
     request_log[ip].append(now)
     return True
 
-# ════════════════════════════════════════
-# HEALTH CHECK
-# ════════════════════════════════════════
 @app.get("/")
 async def health():
-    return {"status": "PANDA Proxy activo", "security": "enabled"}
+    return {"status": "PANDA Proxy activo", "models": list(ALLOWED_MODELS)}
 
-# ════════════════════════════════════════
-# PROXY ENDPOINT (streaming)
-# ════════════════════════════════════════
-@app.post("/v1/messages")
-async def proxy(request: Request):
-    # 1. Validar token secreto
+async def validate_request(request):
     token = request.headers.get("X-Panda-Token", "")
     if PANDA_SECRET and token != PANDA_SECRET:
-        raise HTTPException(status_code=403, detail="Token inválido. Acceso denegado.")
-
-    # 2. Rate limiting
+        raise HTTPException(status_code=403, detail="Token invalido.")
     client_ip = request.client.host if request.client else "unknown"
     if not check_rate_limit(client_ip):
-        raise HTTPException(status_code=429, detail="Demasiadas peticiones. Espera un minuto.")
-
-    # 3. Validar API key configurada
-    if not API_KEY:
-        raise HTTPException(status_code=500, detail="API key no configurada en el servidor.")
-
-    # 4. Leer y validar el body
+        raise HTTPException(status_code=429, detail="Demasiadas peticiones.")
     try:
         body = await request.body()
         data = json.loads(body)
     except Exception:
-        raise HTTPException(status_code=400, detail="Body inválido.")
-
-    # 5. Validar modelo
+        raise HTTPException(status_code=400, detail="Body invalido.")
     model = data.get("model", "")
     if model not in ALLOWED_MODELS:
         raise HTTPException(status_code=400, detail=f"Modelo '{model}' no permitido.")
-
-    # 6. Forzar streaming
-    data["stream"] = True
-
-    # 7. Limitar max_tokens (evitar abuso)
     if data.get("max_tokens", 0) > 16000:
         data["max_tokens"] = 16000
+    return data, model
 
-    # 8. Hacer la llamada al API de Anthropic con streaming
+async def handle_anthropic(data):
+    if not API_KEY:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY no configurada.")
+    data["stream"] = True
     client = httpx.AsyncClient(timeout=600)
     try:
         req = client.build_request(
-            "POST",
-            "https://api.anthropic.com/v1/messages",
+            "POST", "https://api.anthropic.com/v1/messages",
             content=json.dumps(data).encode(),
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": API_KEY,
-                "anthropic-version": "2023-06-01",
-            },
+            headers={"Content-Type": "application/json", "x-api-key": API_KEY, "anthropic-version": "2023-06-01"},
         )
         resp = await client.send(req, stream=True)
     except Exception as e:
         await client.aclose()
-        raise HTTPException(status_code=502, detail=f"Error al conectar con Anthropic: {str(e)}")
-
+        raise HTTPException(status_code=502, detail=f"Error Anthropic: {str(e)}")
     async def stream():
         try:
             async for chunk in resp.aiter_bytes():
@@ -128,10 +89,74 @@ async def proxy(request: Request):
         finally:
             await resp.aclose()
             await client.aclose()
+    return StreamingResponse(stream(), status_code=resp.status_code, media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-    return StreamingResponse(
-        stream(),
-        status_code=resp.status_code,
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+async def handle_gemini(data, model):
+    if not GOOGLE_API_KEY:
+        raise HTTPException(status_code=500, detail="GOOGLE_API_KEY no configurada.")
+    system_text = data.get("system", "")
+    messages = data.get("messages", [])
+    user_msg = ""
+    for msg in messages:
+        if msg.get("role") == "user":
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                user_msg += content + "\n"
+            elif isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        user_msg += part.get("text", "") + "\n"
+                    elif isinstance(part, str):
+                        user_msg += part + "\n"
+    gemini_body = {
+        "contents": [{"role": "user", "parts": [{"text": user_msg.strip()}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {"maxOutputTokens": min(data.get("max_tokens", 8000), 8192), "temperature": 0.7},
+    }
+    if system_text:
+        gemini_body["system_instruction"] = {"parts": [{"text": system_text}]}
+    async with httpx.AsyncClient(timeout=300) as client:
+        try:
+            r = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GOOGLE_API_KEY}",
+                json=gemini_body, headers={"Content-Type": "application/json"},
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Error Google: {str(e)}")
+        if r.status_code != 200:
+            raise HTTPException(status_code=r.status_code, detail=f"Google API: {r.text[:300]}")
+        result = r.json()
+    full_text = ""
+    for candidate in result.get("candidates", []):
+        for part in candidate.get("content", {}).get("parts", []):
+            full_text += part.get("text", "")
+    if not full_text:
+        full_text = "No se encontraron resultados."
+    async def fake_stream():
+        events = [
+            f'event: message_start\ndata: {{"type":"message_start","message":{{"id":"msg_gemini","type":"message","role":"assistant","content":[],"model":"{model}","stop_reason":null}}}}\n\n',
+            f'event: content_block_start\ndata: {{"type":"content_block_start","index":0,"content_block":{{"type":"text","text":""}}}}\n\n',
+        ]
+        chunk_size = 200
+        for i in range(0, len(full_text), chunk_size):
+            chunk = full_text[i:i + chunk_size]
+            escaped = json.dumps(chunk)
+            events.append(f'event: content_block_delta\ndata: {{"type":"content_block_delta","index":0,"delta":{{"type":"text_delta","text":{escaped}}}}}\n\n')
+        events.extend([
+            f'event: content_block_stop\ndata: {{"type":"content_block_stop","index":0}}\n\n',
+            f'event: message_delta\ndata: {{"type":"message_delta","delta":{{"stop_reason":"end_turn"}}}}\n\n',
+            f'event: message_stop\ndata: {{"type":"message_stop"}}\n\n',
+        ])
+        for event in events:
+            yield event.encode()
+    return StreamingResponse(fake_stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+@app.post("/v1/messages")
+async def proxy(request: Request):
+    data, model = await validate_request(request)
+    if model.startswith("gemini"):
+        return await handle_gemini(data, model)
+    else:
+        return await handle_anthropic(data)
