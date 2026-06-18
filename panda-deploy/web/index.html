@@ -1026,6 +1026,7 @@ async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], ma
     profunda: { max: 15, discovery: '10-11', verify: '4-5', tokens: 12000 }
   };
   const cfg = intensityConfig[intensity] || intensityConfig.normal;
+  const isGemini = modelId.startsWith('gemini');
 
   const systemPrompt = `Eres "PANDA" (Radar de Oportunidades Estratégicas), un agente IA especializado en encontrar convocatorias de financiación VIGENTES para la Universidad del Rosario en Colombia.
 
@@ -1045,12 +1046,13 @@ B. Pueden aplicar ORGANIZACIONES SIN ÁNIMO DE LUCRO (ONGs, fundaciones, asociac
 C. Pueden aplicar ENTIDADES COLOMBIANAS en general (instituciones, centros de investigación, consorcios)
 Si la convocatoria excluye explícitamente a universidades, ONGs y entidades colombianas → DESCARTARLA.
 
-⏱ PRESUPUESTO DE BÚSQUEDA — ESTRICTO:
+${isGemini ? `⏱ INSTRUCCIÓN DE BÚSQUEDA:
+Usa tu capacidad de búsqueda en Google para encontrar convocatorias vigentes. Busca activamente en la web información actual sobre grants, convocatorias y oportunidades de financiación. No digas que no puedes buscar — TU TIENES búsqueda web integrada. Úsala.` : `⏱ PRESUPUESTO DE BÚSQUEDA — ESTRICTO:
 Tienes un MÁXIMO de ${cfg.max} búsquedas web en total. Úsalas estratégicamente:
 - ${cfg.discovery} búsquedas para descubrir convocatorias candidatas
 - ${cfg.verify} búsquedas para verificar fechas de las mejores candidatas
 - Al agotar el presupuesto: DETENTE INMEDIATAMENTE y entrega el JSON con lo verificado hasta ese punto
-- NO sigas explorando indefinidamente. Convergencia rápida > exhaustividad.
+- NO sigas explorando indefinidamente. Convergencia rápida > exhaustividad.`}
 
 ESTRATEGIA DE BÚSQUEDA — NO TE LIMITES A LAS FUENTES LISTADAS:
 Explora la web usando estas lógicas (elige las 6-7 más prometedoras según las palabras clave del usuario):
@@ -1086,7 +1088,7 @@ ECH:
 INSTRUCCIÓN SOBRE ALIADOS: Cuando encuentres una convocatoria, verifica si alguno de los aliados listados arriba ya tiene relación con esa fuente o temática — esto aumenta la probabilidad de éxito y debe mencionarse en el fit_urosario. Los aliados también son potenciales co-ejecutores o socios en propuestas conjuntas.
 
 Tu trabajo:
-1. Buscar con web_search en las fuentes listadas Y en toda la web con las lógicas anteriores
+1. ${isGemini ? 'Buscar en Google convocatorias vigentes usando las lógicas anteriores' : 'Buscar con web_search en las fuentes listadas Y en toda la web con las lógicas anteriores'}
 2. Verificar elegibilidad: ¿puede aplicar una universidad colombiana, una ONG o una entidad colombiana?
 3. Verificar vigencia: fecha posterior a ${todayISO} o ventanilla permanente
 4. Identificar QUÉ grupo, línea u observatorio de URosario puede liderarlo
@@ -1102,12 +1104,12 @@ NOTA sobre fuente_usuario y nueva_organizacion_aliada: SOLO incluye "fuente_usua
 
 INSTRUCCIÓN aspectos_importantes: genera EXACTAMENTE 5 puntos concisos (máx 25 palabras c/u) con lo más relevante para un investigador: monto, requisitos, temáticas, socios permitidos y oportunidad estratégica. Cada punto debe iniciar con el número y tema como en el ejemplo.
 
-📡 PROTOCOLO DE ENTREGA PROGRESIVA — OBLIGATORIO:
+${isGemini ? `Devuelve SOLO un array JSON puro con todas las convocatorias. Sin markdown, sin backticks, sin texto antes ni después del array. Solo el array JSON.` : `📡 PROTOCOLO DE ENTREGA PROGRESIVA — OBLIGATORIO:
 Cada vez que VERIFIQUES una convocatoria (vigente + elegible), emite INMEDIATAMENTE una línea con este formato exacto, antes de seguir buscando:
 OPP::{"title":"...","source":"...","type":"...","amount":"...","deadline":"DD/MM/AAAA o PERMANENTE","status":"ABIERTA|PERMANENTE|PRÓXIMA","days_left":número_o_null,"description":"2-3 frases","eligibility":"a quiénes permite aplicar","fit_urosario":"grupo/línea/investigador y por qué","aspectos_importantes":["punto 1","punto 2","punto 3","punto 4","punto 5"],"url":"URL oficial","score":1-100,"keywords":["max 5"]}
 (una sola línea por convocatoria, JSON válido, sin saltos de línea internos)
 
-Al terminar TODAS las búsquedas, emite además el array JSON completo con todas las convocatorias (sin markdown). Esto permite mostrar resultados al usuario mientras sigues trabajando.`;
+Al terminar TODAS las búsquedas, emite además el array JSON completo con todas las convocatorias (sin markdown). Esto permite mostrar resultados al usuario mientras sigues trabajando.`}`;
 
   const userPrompt = `Busca convocatorias VIGENTES y ELEGIBLES (hoy ${today}):
 - Monto buscado: ${profile.monto||'cualquiera'} USD
@@ -1117,19 +1119,24 @@ Al terminar TODAS las búsquedas, emite además el array JSON completo con todas
 - Fuentes a priorizar (sin limitarse a ellas): ${sources.join(', ')}
 - Aliados estratégicos URosario a considerar como pistas de búsqueda: GIZ, PNUD, ACNUR, JEP, Wellcome Trust, DeJusticia, CINEP, WWF, Konrad Adenauer, FESCOL, CLACSO, UNESCO, OPS, IDEA Internacional, Amazon Conservation, Rachel Carson Center, Goethe-Institut, Reuters Institute, AI Now Institute
 ${sourcesWithUrls.length>0?`\nURLs específicas a rastrear:\n${sourcesWithUrls.map(s=>`  • ${s.name}: ${s.url}`).join('\n')}`:''}
-${manualUrls.length>0?`\n⭐ URLs ENCONTRADAS POR EL USUARIO — VERIFICACIÓN OBLIGATORIA:\nEl usuario identificó estas convocatorias por su cuenta. DEBES usar web_search o consultarlas directamente para CADA una de estas URLs, verificar vigencia y elegibilidad, y SIEMPRE incluirlas en el resultado (vigentes o no, pero indica su estado real). Marca estas con "fuente_usuario": true en el JSON.\n${manualUrls.map((u,i)=>`  ${i+1}. ${u}`).join('\n')}\n\nADEMÁS: para cada una de estas URLs del usuario que resulte ELEGIBLE Y VIGENTE, agrega el campo "nueva_organizacion_aliada": "Nombre de la organización" — esto sirve para ampliar el banco de aliados de URosario con organizaciones nuevas que el usuario descubrió.`:''}
+${manualUrls.length>0?`\n⭐ URLs ENCONTRADAS POR EL USUARIO — VERIFICACIÓN OBLIGATORIA:\nEl usuario identificó estas convocatorias por su cuenta. DEBES verificar CADA una de estas URLs, confirmar vigencia y elegibilidad, y SIEMPRE incluirlas en el resultado (vigentes o no, pero indica su estado real). Marca estas con "fuente_usuario": true en el JSON.\n${manualUrls.map((u,i)=>`  ${i+1}. ${u}`).join('\n')}\n\nADEMÁS: para cada una de estas URLs del usuario que resulte ELEGIBLE Y VIGENTE, agrega el campo "nueva_organizacion_aliada": "Nombre de la organización" — esto sirve para ampliar el banco de aliados de URosario con organizaciones nuevas que el usuario descubrió.`:''}
 
 ELEGIBILIDAD REQUERIDA (AL MENOS UNA):
 • Universidades colombianas pueden aplicar, O
 • Organizaciones sin ánimo de lucro pueden aplicar, O
 • Entidades colombianas en general pueden aplicar
 
-PROCESO (MÁXIMO ${cfg.max} BÚSQUEDAS WEB EN TOTAL):
+${isGemini ? `PROCESO:
+1. Busca en Google convocatorias vigentes usando las palabras clave y fuentes indicadas
+2. Verifica elegibilidad y fechas de cada candidata
+3. Descarta vencidas o que excluyan a universidades/ONGs/entidades colombianas
+4. Entrega un array JSON puro con las convocatorias verificadas, sin markdown, sin texto antes ni después
+5. IMPORTANTE: NO digas que no puedes buscar. Usa tu Google Search integrado.` : `PROCESO (MÁXIMO ${cfg.max} BÚSQUEDAS WEB EN TOTAL):
 1. Haz ${cfg.discovery} búsquedas de descubrimiento combinando las palabras clave con las lógicas abiertas
 2. Para las mejores candidatas: verifica elegibilidad y fecha con ${cfg.verify} búsquedas adicionales
 3. Descarta vencidas o que excluyan a universidades/ONGs/entidades colombianas
 4. AL LLEGAR A 10 BÚSQUEDAS: DETENTE y entrega el array JSON inmediatamente con lo que tengas verificado
-5. El JSON debe ser puro, sin markdown, sin texto antes ni después
+5. El JSON debe ser puro, sin markdown, sin texto antes ni después`}
 
 Prefiero 3-4 convocatorias verificadas entregadas RÁPIDO que 8 perfectas que nunca llegan.`;
 
