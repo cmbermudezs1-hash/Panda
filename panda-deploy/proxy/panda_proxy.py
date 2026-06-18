@@ -25,7 +25,7 @@ ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "https://cmbermudezs1-hash.git
 
 # Modelos permitidos (evita que usen modelos caros sin tu permiso)
 ALLOWED_MODELS = {
-    "claude-haiku-3-5-20241022",
+    "claude-haiku-4-5-20251001",
     "claude-sonnet-4-6",
     "claude-opus-4-6",
 }
