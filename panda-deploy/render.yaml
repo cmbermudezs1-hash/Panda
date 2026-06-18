@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: panda-proxy
+    runtime: python
+    plan: free
+    buildCommand: pip install -r proxy/requirements.txt
+    startCommand: uvicorn proxy.panda_proxy:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PANDA_SECRET
+        sync: false
+      - key: ALLOWED_ORIGIN
+        value: https://cmbermudezs1-hash.github.io
+      - key: MAX_RPM
+        value: "15"
