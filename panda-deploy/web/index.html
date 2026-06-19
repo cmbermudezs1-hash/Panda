@@ -1119,7 +1119,8 @@ Al terminar TODAS las búsquedas, emite además el array JSON completo con todas
 - Fuentes a priorizar (sin limitarse a ellas): ${sources.join(', ')}
 - Aliados estratégicos URosario a considerar como pistas de búsqueda: GIZ, PNUD, ACNUR, JEP, Wellcome Trust, DeJusticia, CINEP, WWF, Konrad Adenauer, FESCOL, CLACSO, UNESCO, OPS, IDEA Internacional, Amazon Conservation, Rachel Carson Center, Goethe-Institut, Reuters Institute, AI Now Institute
 ${sourcesWithUrls.length>0?`\nURLs específicas a rastrear:\n${sourcesWithUrls.map(s=>`  • ${s.name}: ${s.url}`).join('\n')}`:''}
-${manualUrls.length>0?`\n⭐ URLs ENCONTRADAS POR EL USUARIO — VERIFICACIÓN OBLIGATORIA:\nEl usuario identificó estas convocatorias por su cuenta. DEBES verificar CADA una de estas URLs, confirmar vigencia y elegibilidad, y SIEMPRE incluirlas en el resultado (vigentes o no, pero indica su estado real). Marca estas con "fuente_usuario": true en el JSON.\n${manualUrls.map((u,i)=>`  ${i+1}. ${u}`).join('\n')}\n\nADEMÁS: para cada una de estas URLs del usuario que resulte ELEGIBLE Y VIGENTE, agrega el campo "nueva_organizacion_aliada": "Nombre de la organización" — esto sirve para ampliar el banco de aliados de URosario con organizaciones nuevas que el usuario descubrió.`:''}
+${manualUrls.length>0?`\nURLs adicionales del usuario — analiza cada una y agrégala al resultado con el mismo formato y detalle que cualquier otra convocatoria:
+${manualUrls.map((u,i)=>`  ${i+1}. ${u}`).join('\n')}`:''}
 
 ELEGIBILIDAD REQUERIDA (AL MENOS UNA):
 • Universidades colombianas pueden aplicar, O
@@ -1318,7 +1319,7 @@ huntBtn.addEventListener('click', async () => {
   const unitLabel = selectedUnit==='ambas'?'ECH + FEIPU':selectedUnit.toUpperCase();
   addTraceLine('OBSERVE', `Unidad: ${unitLabel} · ${selectedLines.length>0?selectedLines.length+' líneas priorizadas':'todas las líneas'}`, 0);
   addTraceLine('CONTEXT', 'Perfil institucional cargado: grupos, observatorios y aliados', 200);
-  addTraceLine('PLAN', `${sources.length} fuentes activas${manualUrls.length>0?` · ${manualUrls.length} URL(s) tuyas a verificar`:''}`, 400);
+  addTraceLine('PLAN', `${sources.length} fuentes activas${manualUrls.length>0?` + ${manualUrls.length} URL(s) del usuario`:''}`, 400);
   addTraceLine('CALL', `${modelLabel} · ${intensityLabel} · web_search`, 600);
 
   try {
