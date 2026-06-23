@@ -1723,8 +1723,11 @@ async function extractWithFirecrawl(urls) {
 async function saveToSheets(opps) {
   const usuario = getUser();
   const modelLabel = document.getElementById('modelo')?.selectedOptions?.[0]?.textContent?.split('—')[0]?.trim() || '';
+  const sesion = Date.now().toString();
+  const fecha = new Date().toLocaleString('es-CO');
   const rows = opps.map(o => ({
-    fecha: new Date().toLocaleString('es-CO'),
+    sesion,
+    fecha,
     usuario,
     modelo: modelLabel,
     title: o.title || '',
@@ -1735,7 +1738,9 @@ async function saveToSheets(opps) {
     score: o.score || '',
     url: o.url || '',
     description: (o.desc || o.description || '').substring(0, 300),
-    keywords: o.kws || o.keywords || []
+    keywords: Array.isArray(o.kws || o.keywords) ? (o.kws || o.keywords).join(', ') : '',
+    fit_urosario: (o.fit || '').substring(0, 300),
+    aspectos: Array.isArray(o.aspectos || o.aspectos_importantes) ? (o.aspectos || o.aspectos_importantes).join(' | ') : ''
   }));
   try {
     await fetch(PANDA_API_URL.replace('/v1/messages', '/sheets/save'), {
@@ -1837,20 +1842,79 @@ async function loadSharedHistory() {
 
   const rows = await loadFromSheets();
   if(rows.length === 0) {
-    container.innerHTML = '<div class="hist-empty">No hay búsquedas compartidas todavía, o no se pudo conectar con Google Sheets.</div>';
+    container.innerHTML = '<div class="hist-empty">No hay búsquedas compartidas todavía.</div>';
     return;
   }
 
-  // Show most recent first (last rows in sheet = most recent)
-  const reversed = rows.slice().reverse().slice(0, 50);
-  container.innerHTML = reversed.map(r => `
-    <div class="hist-item">
-      <div class="hist-info">
-        <div class="hist-date">${r.Fecha || r.fecha || '—'} · ${r.Usuario || r.usuario || '—'} · ${r.Modelo || r.modelo || ''}</div>
-        <div class="hist-desc"><strong>${r['Título'] || r.title || r.Titulo || '—'}</strong> — ${r.Fuente || r.source || ''} ${r.Monto || r.amount ? '· ' + (r.Monto || r.amount) : ''}</div>
+  // Agrupar por sesión (o por fecha+usuario si no hay sesión)
+  const groups = {};
+  rows.forEach(r => {
+    const key = r.sesion || r.Sesion || (r.Fecha||r.fecha||'') + '|' + (r.Usuario||r.usuario||'');
+    if(!groups[key]) groups[key] = { fecha: r.Fecha||r.fecha||'', usuario: r.Usuario||r.usuario||'', modelo: r.Modelo||r.modelo||'', items: [] };
+    groups[key].items.push(r);
+  });
+
+  // Ordenar por fecha más reciente
+  const sorted = Object.entries(groups).sort((a,b) => {
+    const ta = a[1].items[0]?.sesion || a[0];
+    const tb = b[1].items[0]?.sesion || b[0];
+    return tb.localeCompare(ta);
+  }).slice(0, 30);
+
+  container.innerHTML = sorted.map(([key, g], idx) => `
+    <div class="hist-item" style="display:block;padding:0;border:1px solid var(--gray-light);margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;background:var(--cream);" onclick="toggleSharedGroup(${idx})">
+        <div>
+          <div class="hist-date">${g.fecha} · ${g.usuario} · ${g.modelo}</div>
+          <div class="hist-desc"><strong>${g.items.length} convocatoria(s)</strong></div>
+        </div>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#999;" id="sharedArrow${idx}">▶ Expandir</span>
       </div>
-      ${(r.URL || r.url) ? `<div class="hist-actions"><a href="${r.URL || r.url}" target="_blank" class="hist-btn" style="text-decoration:none;">Ver →</a></div>` : ''}
-    </div>`).join('');
+      <div id="sharedGroup${idx}" style="display:none;padding:10px 14px;border-top:1px solid var(--gray-light);background:var(--white);">
+        ${g.items.map(r => `
+          <div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;color:var(--black);text-transform:uppercase;">${r['Título']||r.title||r.Titulo||'Sin título'}</div>
+            <div style="font-size:12px;color:var(--gray-mid);margin-top:2px;">${r.Fuente||r.source||''} ${r.Monto||r.amount?'· '+(r.Monto||r.amount):''} ${r.Cierre||r.deadline?'· Cierre: '+(r.Cierre||r.deadline):''}</div>
+            ${(r.URL||r.url)?`<a href="${r.URL||r.url}" target="_blank" style="font-size:11px;color:var(--black);font-weight:600;">Ver convocatoria →</a>`:''}
+          </div>
+        `).join('')}
+        <div style="display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:2px solid var(--yellow);">
+          <button class="hist-btn" onclick='restoreSharedSearch(${JSON.stringify(g.items).replace(/'/g,"&#39;")})' style="background:var(--black);color:var(--yellow);border-color:var(--black);">📋 Cargar en PANDA</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleSharedGroup(idx) {
+  const group = document.getElementById('sharedGroup' + idx);
+  const arrow = document.getElementById('sharedArrow' + idx);
+  if(!group) return;
+  const open = group.style.display === 'none';
+  group.style.display = open ? 'block' : 'none';
+  if(arrow) arrow.textContent = open ? '▼ Colapsar' : '▶ Expandir';
+}
+
+function restoreSharedSearch(items) {
+  const opps = items.map(r => ({
+    title: r['Título'] || r.title || r.Titulo || '',
+    source: r.Fuente || r.source || '',
+    type: r.Tipo || r.type || '',
+    amount: r.Monto || r.amount || '',
+    deadline: r.Cierre || r.deadline || '',
+    status: r.Estado || r.status || 'ABIERTA',
+    days_left: null,
+    description: r['Descripción'] || r.description || r.Descripcion || '',
+    eligibility: '',
+    aspectos_importantes: (r.aspectos || r.Aspectos || '').split(' | ').filter(Boolean),
+    fit_urosario: r.fit_urosario || r.Fit || '',
+    url: r.URL || r.url || '',
+    score: parseInt(r.Score || r.score) || 50,
+    keywords: (r['Palabras clave'] || r.keywords || r.Keywords || '').split(',').map(k => k.trim()).filter(Boolean)
+  }));
+  renderOpportunities(opps);
+  document.getElementById('results').classList.add('active');
+  document.getElementById('results').scrollIntoView({behavior:'smooth'});
 }
 
 function restoreSearch(i) {
