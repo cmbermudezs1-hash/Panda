@@ -1673,9 +1673,8 @@ ${tarjetas}
   alert(`✓ Mailing generado con ${sel.length} convocatoria(s).\n\nPara enviarlo:\n1. Abre el archivo descargado en Chrome o Edge\n2. Ctrl+A para seleccionar todo\n3. Ctrl+C para copiar\n4. Pega (Ctrl+V) en un correo nuevo de Outlook o Gmail`);
 }
 
-// ══════════ GOOGLE SHEETS — HISTORIAL COMPARTIDO ══════════
+// ══════════ GOOGLE SHEETS — HISTORIAL COMPARTIDO (vía proxy) ══════════
 async function saveToSheets(opps) {
-  if(!SHEETS_URL) return;
   const usuario = getUser();
   const modelLabel = document.getElementById('modelo')?.selectedOptions?.[0]?.textContent?.split('—')[0]?.trim() || '';
   const rows = opps.map(o => ({
@@ -1693,23 +1692,22 @@ async function saveToSheets(opps) {
     keywords: o.kws || o.keywords || []
   }));
   try {
-    await fetch(SHEETS_URL, {
+    await fetch(PANDA_API_URL.replace('/v1/messages', '/sheets/save'), {
       method: 'POST',
       body: JSON.stringify({rows}),
-      headers: {'Content-Type': 'text/plain'},
-      redirect: 'follow',
-      mode: 'no-cors'
+      headers: {'Content-Type': 'application/json', 'X-Panda-Token': PANDA_SECRET}
     });
-    console.log('PANDA · Guardado en Google Sheets:', rows.length, 'convocatorias');
+    console.log('PANDA · Guardado en Sheets:', rows.length);
   } catch(e) {
     console.warn('PANDA · No se pudo guardar en Sheets:', e);
   }
 }
 
 async function loadFromSheets() {
-  if(!SHEETS_URL) return [];
   try {
-    const r = await fetch(SHEETS_URL, {redirect: 'follow'});
+    const r = await fetch(PANDA_API_URL.replace('/v1/messages', '/sheets/load'), {
+      headers: {'X-Panda-Token': PANDA_SECRET}
+    });
     const data = await r.json();
     return data.rows || [];
   } catch(e) {
@@ -1757,15 +1755,9 @@ function renderHistory() {
 
   let html = '';
 
-  // Link to shared sheet
-  if(SHEETS_URL) {
-    html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;padding:10px 14px;background:rgba(244,208,63,0.08);border:1px solid rgba(244,208,63,0.25);">
-      <span style="font-size:12px;color:var(--gray-mid);">📋 Las búsquedas se guardan automáticamente en la hoja compartida del equipo.</span>
-    </div>`;
-  }
-
+  // Local history
   if(hist.length === 0) {
-    html += '<div class="hist-empty">Aún no hay búsquedas guardadas localmente. Lanza al Panda para empezar.</div>';
+    html += '<div class="hist-empty">Aún no hay búsquedas locales. Lanza al Panda para empezar.</div>';
   } else {
     html += hist.map((h, i) => `
       <div class="hist-item">
@@ -1779,7 +1771,40 @@ function renderHistory() {
         </div>
       </div>`).join('');
   }
+
+  // Shared history section
+  html += `<div id="sharedHistSection" style="margin-top:16px;border-top:2px solid var(--yellow);padding-top:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:var(--black);">📋 Historial compartido del equipo</span>
+      <button class="hist-btn" onclick="loadSharedHistory()" style="font-size:9px;">🔄 Actualizar</button>
+    </div>
+    <div id="sharedHistList"><div class="hist-empty">Clic en 🔄 Actualizar para cargar el historial del equipo.</div></div>
+  </div>`;
+
   body.innerHTML = html;
+}
+
+async function loadSharedHistory() {
+  const container = document.getElementById('sharedHistList');
+  if(!container) return;
+  container.innerHTML = '<div class="hist-empty">Cargando historial del equipo...</div>';
+
+  const rows = await loadFromSheets();
+  if(rows.length === 0) {
+    container.innerHTML = '<div class="hist-empty">No hay búsquedas compartidas todavía, o no se pudo conectar con Google Sheets.</div>';
+    return;
+  }
+
+  // Show most recent first (last rows in sheet = most recent)
+  const reversed = rows.slice().reverse().slice(0, 50);
+  container.innerHTML = reversed.map(r => `
+    <div class="hist-item">
+      <div class="hist-info">
+        <div class="hist-date">${r.Fecha || r.fecha || '—'} · ${r.Usuario || r.usuario || '—'} · ${r.Modelo || r.modelo || ''}</div>
+        <div class="hist-desc"><strong>${r['Título'] || r.title || r.Titulo || '—'}</strong> — ${r.Fuente || r.source || ''} ${r.Monto || r.amount ? '· ' + (r.Monto || r.amount) : ''}</div>
+      </div>
+      ${(r.URL || r.url) ? `<div class="hist-actions"><a href="${r.URL || r.url}" target="_blank" class="hist-btn" style="text-decoration:none;">Ver →</a></div>` : ''}
+    </div>`).join('');
 }
 
 function restoreSearch(i) {
