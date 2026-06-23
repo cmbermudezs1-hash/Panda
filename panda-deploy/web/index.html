@@ -1871,13 +1871,25 @@ async function loadSharedHistory() {
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#999;" id="sharedArrow${idx}">▶ Expandir</span>
       </div>
       <div id="sharedGroup${idx}" style="display:none;padding:10px 14px;border-top:1px solid var(--gray-light);background:var(--white);">
-        ${g.items.map(r => `
-          <div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;color:var(--black);text-transform:uppercase;">${r['Título']||r.title||r.Titulo||'Sin título'}</div>
-            <div style="font-size:12px;color:var(--gray-mid);margin-top:2px;">${r.Fuente||r.source||''} ${r.Monto||r.amount?'· '+(r.Monto||r.amount):''} ${r.Cierre||r.deadline?'· Cierre: '+(r.Cierre||r.deadline):''}</div>
-            ${(r.URL||r.url)?`<a href="${r.URL||r.url}" target="_blank" style="font-size:11px;color:var(--black);font-weight:600;">Ver convocatoria →</a>`:''}
-          </div>
-        `).join('')}
+        ${g.items.map(r => {
+          const desc = r['Descripción'] || r.description || r.Descripcion || '';
+          const kws = (r['Palabras clave'] || r.keywords || r.Keywords || '').split(',').map(k=>k.trim()).filter(Boolean);
+          const fit = r.fit_urosario || r.Fit || r['Fit URosario'] || '';
+          const aspectos = (r.aspectos || r.Aspectos || '').split(' | ').filter(Boolean);
+          return `
+          <div style="padding:12px 0;border-bottom:1px solid #eee;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;color:var(--black);text-transform:uppercase;line-height:1.2;">${r['Título']||r.title||r.Titulo||'Sin título'}</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:900;padding:4px 8px;background:${parseInt(r.Score||r.score)>=75?'var(--black)':'var(--cream)'};color:${parseInt(r.Score||r.score)>=75?'var(--yellow)':'var(--gray-mid)'};flex-shrink:0;">MATCH ${r.Score||r.score||'?'}</div>
+            </div>
+            <div style="font-size:12px;color:var(--gray-mid);margin-top:4px;">${r.Fuente||r.source||''} ${r.Monto||r.amount?'· '+(r.Monto||r.amount):''} ${r.Cierre||r.deadline?'· Cierre: '+(r.Cierre||r.deadline):''} ${r.Estado||r.status?'· '+(r.Estado||r.status):''}</div>
+            ${desc?`<div style="font-size:12px;line-height:1.6;color:#555;margin-top:8px;padding:8px 12px;background:#fafafa;border-left:3px solid var(--gray-light);">${desc}</div>`:''}
+            ${kws.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${kws.map(k=>'<span style="padding:2px 7px;background:var(--black);color:var(--yellow);font-family:\'Barlow Condensed\',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">// '+k+'</span>').join('')}</div>`:''}
+            ${aspectos.length?`<div style="margin-top:8px;padding:8px 12px;background:#fafaf8;border-left:3px solid #ccc;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#555;margin-bottom:4px;">⊞ Aspectos importantes</div><ol style="margin:0 0 0 16px;padding:0;font-size:11px;line-height:1.7;color:#555;">${aspectos.map(a=>'<li>'+a+'</li>').join('')}</ol></div>`:''}
+            ${fit?`<div style="margin-top:8px;padding:8px 12px;background:rgba(244,208,63,0.07);border-left:3px solid var(--yellow);"><div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#9a7a00;margin-bottom:4px;">⌬ Match URosario</div><div style="font-size:11px;line-height:1.6;color:#555;">${fit}</div></div>`:''}
+            ${(r.URL||r.url)?`<a href="${r.URL||r.url}" target="_blank" style="display:inline-block;margin-top:8px;font-size:11px;color:var(--black);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;padding:6px 14px;background:var(--yellow);border:1px solid var(--black);">Ver convocatoria →</a>`:''}
+          </div>`;
+        }).join('')}
         <div style="display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:2px solid var(--yellow);">
           <button class="hist-btn" onclick='restoreSharedSearch(${JSON.stringify(g.items).replace(/'/g,"&#39;")})' style="background:var(--black);color:var(--yellow);border-color:var(--black);">📋 Cargar en PANDA</button>
         </div>
