@@ -1302,9 +1302,8 @@ function cancelHunt() {
 }
 
 // ── HUNT BUTTON ──
-document.addEventListener('DOMContentLoaded', () => {
-  const huntBtn = document.getElementById('huntBtn');
-  if(huntBtn) huntBtn.addEventListener('click', async () => {
+const huntBtn = document.getElementById('huntBtn');
+huntBtn.addEventListener('click', async () => {
   const profile = {
     unit: selectedUnit,
     monto: document.getElementById('monto').value,
@@ -1470,7 +1469,6 @@ document.addEventListener('DOMContentLoaded', () => {
     cancelReject = null;
   }
 }); // close huntBtn listener
-}); // close DOMContentLoaded
 
 // ══════════ SELECCIÓN Y MAILING ══════════
 function toggleOppSelect(idx, checked) {
