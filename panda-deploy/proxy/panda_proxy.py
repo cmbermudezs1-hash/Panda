@@ -1,11 +1,10 @@
 """
 PANDA Proxy — Servidor seguro para el Radar de Oportunidades
-Soporta: Claude (Anthropic) + Gemini (Google) con formato unificado
-Seguridad: CORS + token secreto + rate limiting + whitelist de modelos
+Soporta: Claude (Anthropic) + Gemini (Google) + Google Sheets historial
 """
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 import httpx, json, os, time
 from collections import defaultdict
 
@@ -14,6 +13,7 @@ app = FastAPI(title="PANDA Proxy", docs_url=None, redoc_url=None)
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 PANDA_SECRET = os.environ.get("PANDA_SECRET", "")
+SHEETS_URL = os.environ.get("SHEETS_URL", "")
 ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "https://cmbermudezs1-hash.github.io")
 
 ALLOWED_MODELS = {
@@ -28,7 +28,7 @@ MAX_REQUESTS_PER_MINUTE = int(os.environ.get("MAX_RPM", "15"))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[ALLOWED_ORIGIN, "http://localhost:8000", "http://127.0.0.1:8000", "null"],
-    allow_methods=["POST", "OPTIONS"],
+    allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["Content-Type", "X-Panda-Token"],
     max_age=3600,
 )
@@ -44,29 +44,50 @@ def check_rate_limit(ip):
     request_log[ip].append(now)
     return True
 
+def validate_token(request):
+    token = request.headers.get("X-Panda-Token", "")
+    if PANDA_SECRET and token != PANDA_SECRET:
+        raise HTTPException(status_code=403, detail="Token invalido.")
+
 @app.get("/")
 async def health():
     return {"status": "PANDA Proxy activo", "models": list(ALLOWED_MODELS)}
 
-async def validate_request(request):
-    token = request.headers.get("X-Panda-Token", "")
-    if PANDA_SECRET and token != PANDA_SECRET:
-        raise HTTPException(status_code=403, detail="Token invalido.")
-    client_ip = request.client.host if request.client else "unknown"
-    if not check_rate_limit(client_ip):
-        raise HTTPException(status_code=429, detail="Demasiadas peticiones.")
+# ════════════════════════════════════════
+# GOOGLE SHEETS — Leer historial compartido
+# ════════════════════════════════════════
+@app.get("/sheets/load")
+async def sheets_load(request: Request):
+    validate_token(request)
+    if not SHEETS_URL:
+        return JSONResponse({"rows": [], "error": "SHEETS_URL no configurada"})
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            r = await client.get(SHEETS_URL)
+            data = r.json()
+            return JSONResponse(data)
+    except Exception as e:
+        return JSONResponse({"rows": [], "error": str(e)})
+
+# ════════════════════════════════════════
+# GOOGLE SHEETS — Guardar convocatorias
+# ════════════════════════════════════════
+@app.post("/sheets/save")
+async def sheets_save(request: Request):
+    validate_token(request)
+    if not SHEETS_URL:
+        return JSONResponse({"ok": False, "error": "SHEETS_URL no configurada"})
     try:
         body = await request.body()
-        data = json.loads(body)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Body invalido.")
-    model = data.get("model", "")
-    if model not in ALLOWED_MODELS:
-        raise HTTPException(status_code=400, detail=f"Modelo '{model}' no permitido.")
-    if data.get("max_tokens", 0) > 16000:
-        data["max_tokens"] = 16000
-    return data, model
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            r = await client.post(SHEETS_URL, content=body, headers={"Content-Type": "application/json"})
+            return JSONResponse(r.json())
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
 
+# ════════════════════════════════════════
+# ANTHROPIC (Claude) — streaming
+# ════════════════════════════════════════
 async def handle_anthropic(data):
     if not API_KEY:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY no configurada.")
@@ -92,6 +113,9 @@ async def handle_anthropic(data):
     return StreamingResponse(stream(), status_code=resp.status_code, media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+# ════════════════════════════════════════
+# GOOGLE GEMINI — convierte a formato Anthropic SSE
+# ════════════════════════════════════════
 async def handle_gemini(data, model):
     if not GOOGLE_API_KEY:
         raise HTTPException(status_code=500, detail="GOOGLE_API_KEY no configurada.")
@@ -153,9 +177,25 @@ async def handle_gemini(data, model):
     return StreamingResponse(fake_stream(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+# ════════════════════════════════════════
+# ENDPOINT PRINCIPAL — rutea según modelo
+# ════════════════════════════════════════
 @app.post("/v1/messages")
 async def proxy(request: Request):
-    data, model = await validate_request(request)
+    validate_token(request)
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(client_ip):
+        raise HTTPException(status_code=429, detail="Demasiadas peticiones.")
+    try:
+        body = await request.body()
+        data = json.loads(body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Body invalido.")
+    model = data.get("model", "")
+    if model not in ALLOWED_MODELS:
+        raise HTTPException(status_code=400, detail=f"Modelo '{model}' no permitido.")
+    if data.get("max_tokens", 0) > 16000:
+        data["max_tokens"] = 16000
     if model.startswith("gemini"):
         return await handle_gemini(data, model)
     else:
