@@ -1,6 +1,6 @@
 """
 PANDA Proxy — Servidor seguro para el Radar de Oportunidades
-Soporta: Claude (Anthropic) + Gemini (Google) + Google Sheets historial
+Soporta: Claude + Gemini + Google Sheets + Firecrawl
 """
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +12,7 @@ app = FastAPI(title="PANDA Proxy", docs_url=None, redoc_url=None)
 
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+FIRECRAWL_API_KEY = os.environ.get("FIRECRAWL_API_KEY", "")
 PANDA_SECRET = os.environ.get("PANDA_SECRET", "")
 SHEETS_URL = os.environ.get("SHEETS_URL", "")
 ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "https://cmbermudezs1-hash.github.io")
@@ -51,10 +52,43 @@ def validate_token(request):
 
 @app.get("/")
 async def health():
-    return {"status": "PANDA Proxy activo", "models": list(ALLOWED_MODELS)}
+    return {"status": "PANDA Proxy activo", "firecrawl": bool(FIRECRAWL_API_KEY), "models": list(ALLOWED_MODELS)}
 
 # ════════════════════════════════════════
-# GOOGLE SHEETS — Leer historial compartido
+# FIRECRAWL — Extraer contenido de URLs
+# ════════════════════════════════════════
+@app.post("/extract")
+async def extract_urls(request: Request):
+    validate_token(request)
+    if not FIRECRAWL_API_KEY:
+        return JSONResponse({"results": [], "error": "FIRECRAWL_API_KEY no configurada."})
+    try:
+        body = await request.body()
+        data = json.loads(body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Body invalido.")
+    urls = data.get("urls", [])
+    if not urls:
+        return JSONResponse({"results": []})
+    results = []
+    async with httpx.AsyncClient(timeout=30) as client:
+        for url in urls[:20]:
+            try:
+                r = await client.post(
+                    "https://api.firecrawl.dev/v1/scrape",
+                    json={"url": url, "formats": ["markdown"]},
+                    headers={"Authorization": f"Bearer {FIRECRAWL_API_KEY}", "Content-Type": "application/json"}
+                )
+                rd = r.json()
+                md = rd.get("data", {}).get("markdown", "")
+                title = rd.get("data", {}).get("metadata", {}).get("title", "")
+                results.append({"url": url, "title": title, "content": md[:6000], "success": True})
+            except Exception as e:
+                results.append({"url": url, "title": "", "content": "", "success": False, "error": str(e)})
+    return JSONResponse({"results": results})
+
+# ════════════════════════════════════════
+# GOOGLE SHEETS
 # ════════════════════════════════════════
 @app.get("/sheets/load")
 async def sheets_load(request: Request):
@@ -64,14 +98,10 @@ async def sheets_load(request: Request):
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
             r = await client.get(SHEETS_URL)
-            data = r.json()
-            return JSONResponse(data)
+            return JSONResponse(r.json())
     except Exception as e:
         return JSONResponse({"rows": [], "error": str(e)})
 
-# ════════════════════════════════════════
-# GOOGLE SHEETS — Guardar convocatorias
-# ════════════════════════════════════════
 @app.post("/sheets/save")
 async def sheets_save(request: Request):
     validate_token(request)
@@ -114,7 +144,7 @@ async def handle_anthropic(data):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 # ════════════════════════════════════════
-# GOOGLE GEMINI — convierte a formato Anthropic SSE
+# GOOGLE GEMINI
 # ════════════════════════════════════════
 async def handle_gemini(data, model):
     if not GOOGLE_API_KEY:
@@ -178,7 +208,7 @@ async def handle_gemini(data, model):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 # ════════════════════════════════════════
-# ENDPOINT PRINCIPAL — rutea según modelo
+# ENDPOINT PRINCIPAL
 # ════════════════════════════════════════
 @app.post("/v1/messages")
 async def proxy(request: Request):
