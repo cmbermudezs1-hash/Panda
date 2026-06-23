@@ -280,6 +280,18 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
 </head>
 <body>
 
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay" style="display:none">
+  <div class="login-box">
+    <div class="login-box-logo">🐼</div>
+    <h2>Bienvenido al Panda Project</h2>
+    <p style="font-size:13px;color:#555;margin-bottom:20px;line-height:1.5">Ingresa tu correo para identificar tus búsquedas.</p>
+    <input class="login-input" id="loginEmail" type="email" placeholder="tu.nombre@urosario.edu.co" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-ok" onclick="doLogin()">Ingresar →</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
 <!-- TOPBAR -->
 <div class="topbar">
   <div class="topbar-left">
@@ -1323,8 +1335,6 @@ huntBtn.addEventListener('click', async () => {
   }
 
   const selectedLines = Array.from(activeLineChips);
-  if(!urlsOnlyMode && sources.length===0){ alert('Selecciona al menos una fuente para buscar.'); return; }
-  if(urlsOnlyMode && manualUrls.length===0){ alert('Pega al menos una URL para usar el modo de solo análisis.'); return; }
 
   // Extraer URLs manuales del usuario (una por línea, validando formato)
   const urlsRaw = (document.getElementById('urlsTextarea')?.value || '').trim();
@@ -1336,6 +1346,10 @@ huntBtn.addEventListener('click', async () => {
   const modelLabel = document.getElementById('modelo').selectedOptions[0].textContent.split('—')[0].trim();
   const intensityLabel = document.getElementById('intensidad').selectedOptions[0].textContent.split('—')[0].trim();
   const urlsOnlyMode = document.getElementById('urlsOnlyMode')?.checked && manualUrls.length > 0;
+
+  // Validaciones
+  if(!urlsOnlyMode && sources.length===0){ alert('Selecciona al menos una fuente para buscar.'); return; }
+  if(urlsOnlyMode && manualUrls.length===0){ alert('Pega al menos una URL para usar el modo de solo análisis.'); return; }
 
   huntBtn.disabled = true;
   huntBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> ${urlsOnlyMode?'Analizando':'Escaneando'} <span class="pulse-dots"><span></span><span></span><span></span></span>`;
