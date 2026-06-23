@@ -261,6 +261,21 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
 .allies-suggest-title{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#9a7a00;margin-bottom:6px;display:flex;align-items:center;gap:6px}
 .allies-suggest-list{font-size:13px;color:#555;line-height:1.6}
 .allies-suggest-list strong{color:var(--black)}
+
+/* ── LOGIN ── */
+.login-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center}
+.login-box{background:var(--white);width:min(420px,90vw);padding:36px 32px;text-align:center}
+.login-box-logo{font-size:48px;margin-bottom:12px}
+.login-box h2{font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;color:var(--black);margin-bottom:6px}
+.login-box p{font-size:13px;color:var(--gray-mid);margin-bottom:20px;line-height:1.5}
+.login-input{width:100%;padding:12px 14px;border:2px solid var(--black);background:var(--cream);font-family:'Barlow',sans-serif;font-size:14px;color:#333;outline:none;text-align:center}
+.login-input:focus{outline:3px solid var(--yellow);outline-offset:1px}
+.login-input::placeholder{color:#aaa}
+.login-ok{width:100%;padding:14px;background:var(--black);border:2px solid var(--black);color:var(--yellow);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:900;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer;margin-top:12px}
+.login-ok:hover{background:var(--yellow);color:var(--black)}
+.login-err{font-size:12px;color:#c00;margin-top:8px;min-height:16px}
+.user-badge{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#333;cursor:pointer;padding:4px 10px;background:rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.15)}
+.user-badge:hover{background:rgba(0,0,0,0.15)}
 </style>
 </head>
 <body>
@@ -275,6 +290,7 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
     </div>
   </div>
   <div class="topbar-right">
+    <div class="user-badge" id="userBadge" onclick="changeUser()" title="Cambiar usuario">👤 <span id="userLabel">—</span></div>
     <div class="badge-live">
       <div class="badge-live-dot"></div>
       <span>Agente activo</span>
@@ -499,6 +515,10 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
     <div class="urls-panel-hint">Pega aquí los links de las convocatorias que encontraste — uno por línea. Puedes pegar 1 o las que quieras. El Panda las verificará junto con su propia búsqueda.</div>
     <textarea class="urls-textarea" id="urlsTextarea" placeholder="https://ejemplo.org/convocatoria-2026&#10;https://otra-fuente.com/grants&#10;https://..." oninput="updateUrlsCount()"></textarea>
     <div class="urls-count" id="urlsCount">0 URL(s) agregada(s)</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--gray-mid);">
+      <input type="checkbox" id="urlsOnlyMode" style="width:16px;height:16px;accent-color:var(--black);cursor:pointer;">
+      Solo analizar estas URLs (sin búsqueda adicional)
+    </label>
   </div>
 </div>
 
@@ -623,7 +643,8 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
 // Local:  'http://localhost:8000/v1/messages'
 // Render: 'https://TU-SERVICIO.onrender.com/v1/messages'
 const PANDA_API_URL = 'https://panda-proxy.onrender.com/v1/messages';
-const PANDA_SECRET  = 'P4nd4-2026-Ur0s4r10!';  // Token secreto (igual al PANDA_SECRET en Render)
+const PANDA_SECRET  = 'P4nd4-2026-Ur0s4r10!';
+const SHEETS_URL    = 'https://script.google.com/macros/s/AKfycbx9K141hEh_NXg3-Wj0jjRcPAff0OpSsvGo_XE-L1D2mNuNQJn_y_lc2rxeIkIGPRtM/exec';  // Token secreto (igual al PANDA_SECRET en Render)
 
 // ── PERFIL INSTITUCIONAL ──
 const UROSARIO_PROFILE = {
@@ -1014,7 +1035,7 @@ function renderOpportunities(opportunities) {
 }
 
 // ── CALL AGENT ──
-async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], manualUrls=[], modelId='claude-sonnet-4-6', intensity='normal') {
+async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], manualUrls=[], modelId='claude-sonnet-4-6', intensity='normal', urlsOnlyMode=false) {
   const profileContext = buildProfileContext(profile.unit);
   const today = new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
   const todayISO = new Date().toISOString().split('T')[0];
@@ -1046,7 +1067,8 @@ B. Pueden aplicar ORGANIZACIONES SIN ÁNIMO DE LUCRO (ONGs, fundaciones, asociac
 C. Pueden aplicar ENTIDADES COLOMBIANAS en general (instituciones, centros de investigación, consorcios)
 Si la convocatoria excluye explícitamente a universidades, ONGs y entidades colombianas → DESCARTARLA.
 
-${isGemini ? `⏱ INSTRUCCIÓN DE BÚSQUEDA:
+${urlsOnlyMode ? `⏱ MODO SOLO ANÁLISIS:
+NO realices búsquedas web adicionales. Solo analiza las URLs que el usuario te proporciona. Para cada URL genera la ficha completa: título, fuente, monto, fecha, descripción, aspectos importantes, elegibilidad, fit_urosario, score y keywords.` : isGemini ? `⏱ INSTRUCCIÓN DE BÚSQUEDA:
 Usa tu capacidad de búsqueda en Google para encontrar convocatorias vigentes. Busca activamente en la web información actual sobre grants, convocatorias y oportunidades de financiación. No digas que no puedes buscar — TU TIENES búsqueda web integrada. Úsala.` : `⏱ PRESUPUESTO DE BÚSQUEDA — ESTRICTO:
 Tienes un MÁXIMO de ${cfg.max} búsquedas web en total. Úsalas estratégicamente:
 - ${cfg.discovery} búsquedas para descubrir convocatorias candidatas
@@ -1111,7 +1133,12 @@ OPP::{"title":"...","source":"...","type":"...","amount":"...","deadline":"DD/MM
 
 Al terminar TODAS las búsquedas, emite además el array JSON completo con todas las convocatorias (sin markdown). Esto permite mostrar resultados al usuario mientras sigues trabajando.`}`;
 
-  const userPrompt = `Busca convocatorias VIGENTES y ELEGIBLES (hoy ${today}):
+  const userPrompt = urlsOnlyMode ? `Analiza las siguientes URLs de convocatorias (hoy ${today}).
+Para CADA URL genera la ficha completa con todos los campos del JSON: title, source, type, amount, deadline, status, days_left, description, eligibility, fit_urosario, aspectos_importantes (5 puntos), url, score, keywords.
+${manualUrls.map((u,i)=>`  ${i+1}. ${u}`).join('\n')}
+
+Devuelve SOLO el array JSON puro, sin markdown, sin texto antes ni después.
+Prefiero fichas completas y detalladas.` : `Busca convocatorias VIGENTES y ELEGIBLES (hoy ${today}):
 - Monto buscado: ${profile.monto||'cualquiera'} USD
 - Tipo de financiación: ${profile.tipo}
 - Palabras clave: ${profile.palabras||'según perfil institucional'}
@@ -1119,7 +1146,8 @@ Al terminar TODAS las búsquedas, emite además el array JSON completo con todas
 - Fuentes a priorizar (sin limitarse a ellas): ${sources.join(', ')}
 - Aliados estratégicos URosario a considerar como pistas de búsqueda: GIZ, PNUD, ACNUR, JEP, Wellcome Trust, DeJusticia, CINEP, WWF, Konrad Adenauer, FESCOL, CLACSO, UNESCO, OPS, IDEA Internacional, Amazon Conservation, Rachel Carson Center, Goethe-Institut, Reuters Institute, AI Now Institute
 ${sourcesWithUrls.length>0?`\nURLs específicas a rastrear:\n${sourcesWithUrls.map(s=>`  • ${s.name}: ${s.url}`).join('\n')}`:''}
-${manualUrls.length>0?`\n⭐ URLs ENCONTRADAS POR EL USUARIO — VERIFICACIÓN OBLIGATORIA:\nEl usuario identificó estas convocatorias por su cuenta. DEBES verificar CADA una de estas URLs, confirmar vigencia y elegibilidad, y SIEMPRE incluirlas en el resultado (vigentes o no, pero indica su estado real). Marca estas con "fuente_usuario": true en el JSON.\n${manualUrls.map((u,i)=>`  ${i+1}. ${u}`).join('\n')}\n\nADEMÁS: para cada una de estas URLs del usuario que resulte ELEGIBLE Y VIGENTE, agrega el campo "nueva_organizacion_aliada": "Nombre de la organización" — esto sirve para ampliar el banco de aliados de URosario con organizaciones nuevas que el usuario descubrió.`:''}
+${manualUrls.length>0?`\nURLs adicionales del usuario — analiza cada una y agrégala al resultado con el mismo formato y detalle que cualquier otra convocatoria:
+${manualUrls.map((u,i)=>`  ${i+1}. ${u}`).join('\n')}`:''}
 
 ELEGIBILIDAD REQUERIDA (AL MENOS UNA):
 • Universidades colombianas pueden aplicar, O
@@ -1273,8 +1301,10 @@ function cancelHunt() {
   if(cancelReject) { cancelReject(new Error('Búsqueda cancelada por el usuario.')); cancelReject = null; }
 }
 
-const huntBtn = document.getElementById('huntBtn');
-huntBtn.addEventListener('click', async () => {
+// ── HUNT BUTTON ──
+document.addEventListener('DOMContentLoaded', () => {
+  const huntBtn = document.getElementById('huntBtn');
+  if(huntBtn) huntBtn.addEventListener('click', async () => {
   const profile = {
     unit: selectedUnit,
     monto: document.getElementById('monto').value,
@@ -1294,7 +1324,8 @@ huntBtn.addEventListener('click', async () => {
   }
 
   const selectedLines = Array.from(activeLineChips);
-  if(sources.length===0){ alert('Selecciona al menos una fuente para buscar.'); return; }
+  if(!urlsOnlyMode && sources.length===0){ alert('Selecciona al menos una fuente para buscar.'); return; }
+  if(urlsOnlyMode && manualUrls.length===0){ alert('Pega al menos una URL para usar el modo de solo análisis.'); return; }
 
   // Extraer URLs manuales del usuario (una por línea, validando formato)
   const urlsRaw = (document.getElementById('urlsTextarea')?.value || '').trim();
@@ -1305,9 +1336,10 @@ huntBtn.addEventListener('click', async () => {
   const intensity = document.getElementById('intensidad').value;
   const modelLabel = document.getElementById('modelo').selectedOptions[0].textContent.split('—')[0].trim();
   const intensityLabel = document.getElementById('intensidad').selectedOptions[0].textContent.split('—')[0].trim();
+  const urlsOnlyMode = document.getElementById('urlsOnlyMode')?.checked && manualUrls.length > 0;
 
   huntBtn.disabled = true;
-  huntBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Escaneando <span class="pulse-dots"><span></span><span></span><span></span></span>`;
+  huntBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> ${urlsOnlyMode?'Analizando':'Escaneando'} <span class="pulse-dots"><span></span><span></span><span></span></span>`;
   huntCancelled = false;
   const cancelBtn = document.getElementById('cancelBtn');
   if(cancelBtn) { cancelBtn.classList.add('on'); cancelBtn.disabled = false; cancelBtn.textContent = '✕ Cancelar'; }
@@ -1316,13 +1348,19 @@ huntBtn.addEventListener('click', async () => {
   clearTrace();
 
   const unitLabel = selectedUnit==='ambas'?'ECH + FEIPU':selectedUnit.toUpperCase();
-  addTraceLine('OBSERVE', `Unidad: ${unitLabel} · ${selectedLines.length>0?selectedLines.length+' líneas priorizadas':'todas las líneas'}`, 0);
-  addTraceLine('CONTEXT', 'Perfil institucional cargado: grupos, observatorios y aliados', 200);
-  addTraceLine('PLAN', `${sources.length} fuentes activas${manualUrls.length>0?` · ${manualUrls.length} URL(s) tuyas a verificar`:''}`, 400);
-  addTraceLine('CALL', `${modelLabel} · ${intensityLabel} · web_search`, 600);
+  if(urlsOnlyMode) {
+    addTraceLine('OBSERVE', `Modo: solo análisis de ${manualUrls.length} URL(s)`, 0);
+    addTraceLine('CONTEXT', 'Perfil institucional cargado', 200);
+    addTraceLine('CALL', `${modelLabel} · Analizando URLs`, 400);
+  } else {
+    addTraceLine('OBSERVE', `Unidad: ${unitLabel} · ${selectedLines.length>0?selectedLines.length+' líneas priorizadas':'todas las líneas'}`, 0);
+    addTraceLine('CONTEXT', 'Perfil institucional cargado: grupos, observatorios y aliados', 200);
+    addTraceLine('PLAN', `${sources.length} fuentes activas${manualUrls.length>0?` + ${manualUrls.length} URL(s) del usuario`:''}`, 400);
+    addTraceLine('CALL', `${modelLabel} · ${intensityLabel} · web_search`, 600);
+  }
 
   try {
-    const {text, toolUses, liveOpps: liveResults} = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity);
+    const {text, toolUses, liveOpps: liveResults} = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode);
 
     if(toolUses.length > 0) addTraceLine('TOOL', `web_search ejecutado ${toolUses.length} vez(ces) en fuentes externas`, 0);
     addTraceLine('VERIFY', `Filtrando solo convocatorias VIGENTES (hoy: ${new Date().toLocaleDateString('es-CO')})`, 0);
@@ -1431,7 +1469,8 @@ huntBtn.addEventListener('click', async () => {
     huntCancelled = false;
     cancelReject = null;
   }
-});
+}); // close huntBtn listener
+}); // close DOMContentLoaded
 
 // ══════════ SELECCIÓN Y MAILING ══════════
 function toggleOppSelect(idx, checked) {
@@ -1622,7 +1661,52 @@ ${tarjetas}
   alert(`✓ Mailing generado con ${sel.length} convocatoria(s).\n\nPara enviarlo:\n1. Abre el archivo descargado en Chrome o Edge\n2. Ctrl+A para seleccionar todo\n3. Ctrl+C para copiar\n4. Pega (Ctrl+V) en un correo nuevo de Outlook o Gmail`);
 }
 
-// ══════════ HISTORIAL DE BÚSQUEDAS ══════════
+// ══════════ GOOGLE SHEETS — HISTORIAL COMPARTIDO ══════════
+async function saveToSheets(opps) {
+  if(!SHEETS_URL) return;
+  const usuario = getUser();
+  const modelLabel = document.getElementById('modelo')?.selectedOptions?.[0]?.textContent?.split('—')[0]?.trim() || '';
+  const rows = opps.map(o => ({
+    fecha: new Date().toLocaleString('es-CO'),
+    usuario,
+    modelo: modelLabel,
+    title: o.title || '',
+    source: o.source || '',
+    amount: o.amount || '',
+    deadline: o.deadline || '',
+    status: o.status || '',
+    score: o.score || '',
+    url: o.url || '',
+    description: (o.desc || o.description || '').substring(0, 300),
+    keywords: o.kws || o.keywords || []
+  }));
+  try {
+    await fetch(SHEETS_URL, {
+      method: 'POST',
+      body: JSON.stringify({rows}),
+      headers: {'Content-Type': 'text/plain'},
+      redirect: 'follow',
+      mode: 'no-cors'
+    });
+    console.log('PANDA · Guardado en Google Sheets:', rows.length, 'convocatorias');
+  } catch(e) {
+    console.warn('PANDA · No se pudo guardar en Sheets:', e);
+  }
+}
+
+async function loadFromSheets() {
+  if(!SHEETS_URL) return [];
+  try {
+    const r = await fetch(SHEETS_URL, {redirect: 'follow'});
+    const data = await r.json();
+    return data.rows || [];
+  } catch(e) {
+    console.warn('PANDA · No se pudo cargar desde Sheets:', e);
+    return [];
+  }
+}
+
+// ══════════ HISTORIAL (localStorage + Google Sheets) ══════════
 const HIST_KEY = 'panda_search_history';
 
 function loadHistory() {
@@ -1636,6 +1720,7 @@ function saveSearchToHistory(params, opps) {
     hist.unshift({
       ts: Date.now(),
       fecha: new Date().toLocaleString('es-CO'),
+      usuario: getUser(),
       unidad: params.unit,
       tipo: params.tipo,
       palabras: params.palabras,
@@ -1647,6 +1732,8 @@ function saveSearchToHistory(params, opps) {
     localStorage.setItem(HIST_KEY, JSON.stringify(hist));
   } catch(e) { console.warn('No se pudo guardar historial:', e); }
   renderHistory();
+  // Guardar en Google Sheets (compartido con el equipo)
+  saveToSheets(opps);
 }
 
 function renderHistory() {
@@ -1655,21 +1742,32 @@ function renderHistory() {
   const body = document.getElementById('historyBody');
   if(cnt) cnt.textContent = hist.length;
   if(!body) return;
-  if(hist.length === 0) {
-    body.innerHTML = '<div class="hist-empty">Aún no hay búsquedas guardadas. Lanza al Panda para empezar.</div>';
-    return;
+
+  let html = '';
+
+  // Link to shared sheet
+  if(SHEETS_URL) {
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;padding:10px 14px;background:rgba(244,208,63,0.08);border:1px solid rgba(244,208,63,0.25);">
+      <span style="font-size:12px;color:var(--gray-mid);">📋 Las búsquedas se guardan automáticamente en la hoja compartida del equipo.</span>
+    </div>`;
   }
-  body.innerHTML = hist.map((h, i) => `
-    <div class="hist-item">
-      <div class="hist-info">
-        <div class="hist-date">${h.fecha} · ${(h.unidad||'').toUpperCase()} · ${h.nResultados} resultado(s)</div>
-        <div class="hist-desc">${h.palabras ? 'Palabras: ' + h.palabras : 'Sin palabras clave'} ${h.lineas && h.lineas.length ? '· ' + h.lineas.length + ' línea(s)' : ''}</div>
-      </div>
-      <div class="hist-actions">
-        <button class="hist-btn" onclick="restoreSearch(${i})">Ver resultados</button>
-        <button class="hist-btn del" onclick="deleteHistItem(${i})">✕</button>
-      </div>
-    </div>`).join('');
+
+  if(hist.length === 0) {
+    html += '<div class="hist-empty">Aún no hay búsquedas guardadas localmente. Lanza al Panda para empezar.</div>';
+  } else {
+    html += hist.map((h, i) => `
+      <div class="hist-item">
+        <div class="hist-info">
+          <div class="hist-date">${h.fecha} · ${h.usuario||'—'} · ${h.nResultados} resultado(s)</div>
+          <div class="hist-desc">${h.palabras ? 'Palabras: ' + h.palabras : 'Sin palabras clave'} ${h.lineas && h.lineas.length ? '· ' + h.lineas.length + ' línea(s)' : ''}</div>
+        </div>
+        <div class="hist-actions">
+          <button class="hist-btn" onclick="restoreSearch(${i})">Ver resultados</button>
+          <button class="hist-btn del" onclick="deleteHistItem(${i})">✕</button>
+        </div>
+      </div>`).join('');
+  }
+  body.innerHTML = html;
 }
 
 function restoreSearch(i) {
@@ -1744,7 +1842,50 @@ function renderAlliesSuggestion(opportunities){
   if(resultsHeader) resultsHeader.insertAdjacentElement('afterend', box);
 }
 
+// ══ USUARIO ══
+const USER_KEY = 'panda_user_email';
+
+function getUser() {
+  return localStorage.getItem(USER_KEY) || '';
+}
+
+function initUser() {
+  const overlay = document.getElementById('loginOverlay');
+  const label = document.getElementById('userLabel');
+  if(!overlay || !label) return;
+  const email = getUser();
+  if(!email) {
+    overlay.style.display = 'flex';
+  } else {
+    overlay.style.display = 'none';
+    label.textContent = email;
+  }
+}
+
+function doLogin() {
+  const input = document.getElementById('loginEmail');
+  const err = document.getElementById('loginErr');
+  if(!input || !err) return;
+  const email = input.value.trim().toLowerCase();
+  if(!email || !email.includes('@')) {
+    err.textContent = 'Ingresa un correo válido.';
+    return;
+  }
+  localStorage.setItem(USER_KEY, email);
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('userLabel').textContent = email;
+  err.textContent = '';
+}
+
+function changeUser() {
+  const current = getUser();
+  document.getElementById('loginEmail').value = current;
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('loginErr').textContent = '';
+}
+
 // ── INIT ──
+initUser();
 renderLineChips();
 updateActiveCount();
 renderHistory();
