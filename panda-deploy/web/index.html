@@ -1047,7 +1047,7 @@ function renderOpportunities(opportunities) {
 }
 
 // ── CALL AGENT ──
-async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], manualUrls=[], modelId='claude-sonnet-4-6', intensity='normal', urlsOnlyMode=false) {
+async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], manualUrls=[], modelId='claude-sonnet-4-6', intensity='normal', urlsOnlyMode=false, extractedContent=[]) {
   const profileContext = buildProfileContext(profile.unit);
   const today = new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
   const todayISO = new Date().toISOString().split('T')[0];
@@ -1147,7 +1147,13 @@ Al terminar TODAS las búsquedas, emite además el array JSON completo con todas
 
   const userPrompt = urlsOnlyMode ? `Analiza las siguientes URLs de convocatorias (hoy ${today}).
 Para CADA URL genera la ficha completa con todos los campos del JSON: title, source, type, amount, deadline, status, days_left, description, eligibility, fit_urosario, aspectos_importantes (5 puntos), url, score, keywords.
-${manualUrls.map((u,i)=>`  ${i+1}. ${u}`).join('\n')}
+${extractedContent.length>0 ?
+extractedContent.map((r,i) => r.success ?
+`\n--- CONVOCATORIA ${i+1}: ${r.url} ---\nTítulo: ${r.title || ''}\n${r.content}\n--- FIN ---` :
+`\n--- CONVOCATORIA ${i+1}: ${r.url} --- (contenido no disponible, usa la URL directamente)`
+).join('\n')
+:
+manualUrls.map((u,i)=>'  '+(i+1)+'. '+u).join('\n')}
 
 Devuelve SOLO el array JSON puro, sin markdown, sin texto antes ni después.
 Prefiero fichas completas y detalladas.` : `Busca convocatorias VIGENTES y ELEGIBLES (hoy ${today}):
@@ -1158,8 +1164,19 @@ Prefiero fichas completas y detalladas.` : `Busca convocatorias VIGENTES y ELEGI
 - Fuentes a priorizar (sin limitarse a ellas): ${sources.join(', ')}
 - Aliados estratégicos URosario a considerar como pistas de búsqueda: GIZ, PNUD, ACNUR, JEP, Wellcome Trust, DeJusticia, CINEP, WWF, Konrad Adenauer, FESCOL, CLACSO, UNESCO, OPS, IDEA Internacional, Amazon Conservation, Rachel Carson Center, Goethe-Institut, Reuters Institute, AI Now Institute
 ${sourcesWithUrls.length>0?`\nURLs específicas a rastrear:\n${sourcesWithUrls.map(s=>`  • ${s.name}: ${s.url}`).join('\n')}`:''}
-${manualUrls.length>0?`\nURLs adicionales del usuario — analiza cada una y agrégala al resultado con el mismo formato y detalle que cualquier otra convocatoria:
-${manualUrls.map((u,i)=>`  ${i+1}. ${u}`).join('\n')}`:''}
+${manualUrls.length>0 ? (extractedContent.length>0 ?
+`\nURLs del usuario CON CONTENIDO EXTRAÍDO — analiza el contenido real de cada página:
+${extractedContent.map((r,i) => r.success ?
+`\n--- URL ${i+1}: ${r.url} ---
+Título: ${r.title || 'Sin título'}
+Contenido extraído:
+${r.content}
+--- FIN URL ${i+1} ---` :
+`\n--- URL ${i+1}: ${r.url} --- (no se pudo extraer, búscala con web_search)`
+).join('\n')}`
+:
+`\nURLs adicionales del usuario — analiza cada una y agrégala al resultado con el mismo formato y detalle que cualquier otra convocatoria:
+${manualUrls.map((u,i)=>'  '+(i+1)+'. '+u).join('\n')}`) : ''}
 
 ELEGIBILIDAD REQUERIDA (AL MENOS UNA):
 • Universidades colombianas pueden aplicar, O
@@ -1373,7 +1390,13 @@ huntBtn.addEventListener('click', async () => {
   }
 
   try {
-    const {text, toolUses, liveOpps: liveResults} = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode);
+    // Si hay URLs del usuario, extraer contenido con Firecrawl primero
+    let extractedContent = [];
+    if(manualUrls.length > 0) {
+      extractedContent = await extractWithFirecrawl(manualUrls);
+    }
+
+    const {text, toolUses, liveOpps: liveResults} = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent);
 
     if(toolUses.length > 0) addTraceLine('TOOL', `web_search ejecutado ${toolUses.length} vez(ces) en fuentes externas`, 0);
     addTraceLine('VERIFY', `Filtrando solo convocatorias VIGENTES (hoy: ${new Date().toLocaleDateString('es-CO')})`, 0);
@@ -1671,6 +1694,29 @@ ${tarjetas}
   URL.revokeObjectURL(a.href);
 
   alert(`✓ Mailing generado con ${sel.length} convocatoria(s).\n\nPara enviarlo:\n1. Abre el archivo descargado en Chrome o Edge\n2. Ctrl+A para seleccionar todo\n3. Ctrl+C para copiar\n4. Pega (Ctrl+V) en un correo nuevo de Outlook o Gmail`);
+}
+
+// ══════════ FIRECRAWL — EXTRACCIÓN DE PÁGINAS ══════════
+async function extractWithFirecrawl(urls) {
+  if(!urls || urls.length === 0) return [];
+  try {
+    addTraceLine('EXTRACT', `Extrayendo contenido de ${urls.length} URL(s) con Firecrawl…`, 0);
+    const r = await fetch(PANDA_API_URL.replace('/v1/messages', '/extract'), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Panda-Token': PANDA_SECRET},
+      body: JSON.stringify({urls})
+    });
+    const data = await r.json();
+    const results = data.results || [];
+    const ok = results.filter(r => r.success);
+    const fail = results.filter(r => !r.success);
+    if(ok.length > 0) addTraceLine('EXTRACT', `✓ ${ok.length} página(s) extraídas correctamente`, 0);
+    if(fail.length > 0) addTraceLine('EXTRACT', `⚠ ${fail.length} página(s) no se pudieron extraer`, 0, true);
+    return results;
+  } catch(e) {
+    addTraceLine('EXTRACT', `⚠ Firecrawl no disponible: ${e.message}. Continuando sin extracción.`, 0, true);
+    return [];
+  }
 }
 
 // ══════════ GOOGLE SHEETS — HISTORIAL COMPARTIDO (vía proxy) ══════════
