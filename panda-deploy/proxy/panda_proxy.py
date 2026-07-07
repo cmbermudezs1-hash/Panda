@@ -21,7 +21,7 @@ ALLOWED_MODELS = {
     "claude-haiku-4-5-20251001",
     "claude-sonnet-4-6",
     "claude-opus-4-6",
-    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
 }
 
 MAX_REQUESTS_PER_MINUTE = int(os.environ.get("MAX_RPM", "15"))
