@@ -1439,9 +1439,11 @@ huntBtn.addEventListener('click', async () => {
     let opportunities = [];
     try {
       // Extraer el array JSON de convocatorias del texto.
-      // El modelo puede devolver texto + JSON + más texto.
-      // Buscamos arrays cuyos elementos sean OBJETOS con campos de convocatoria.
-      const stripped = text.replace(/```json/gi,'').replace(/```/g,'');
+      // Limpiar backticks de markdown y anotaciones [cite: N] de Gemini
+      let stripped = text.replace(/```json/gi,'').replace(/```/g,'');
+      stripped = stripped.replace(/\[cite:\s*\d+\]/g, '');  // quitar [cite: 3] etc.
+      stripped = stripped.replace(/\[cite:\s*\d+,\s*\d+\]/g, '');  // quitar [cite: 3, 4]
+
       let parsed = null;
       let searchFrom = 0;
       while(searchFrom < stripped.length) {
@@ -1456,19 +1458,41 @@ huntBtn.addEventListener('click', async () => {
           const candidate = stripped.substring(start, i+1);
           try {
             const attempt = JSON.parse(candidate);
-            // Solo aceptar arrays de OBJETOS (no strings ni números)
-            // y que tengan al menos 1 campo típico de convocatoria
             if(Array.isArray(attempt) && attempt.length > 0 
                && typeof attempt[0] === 'object' && attempt[0] !== null
                && (attempt[0].title || attempt[0].titulo || attempt[0].source || attempt[0].fuente || attempt[0].url || attempt[0].description || attempt[0].descripcion)) {
-              parsed = attempt;
+              if(!parsed || attempt.length > parsed.length) parsed = attempt;
             }
           } catch(_) {}
         }
         searchFrom = start + 1;
       }
+
+      // Si no se encontró array completo, intentar reparar JSON truncado
       if(!parsed) {
-        // Si el array final no llegó pero hubo entregas en vivo, usar esas
+        // Buscar inicio de array y agregar cierre faltante
+        const arrStart = stripped.indexOf('[');
+        if(arrStart !== -1) {
+          let truncated = stripped.substring(arrStart);
+          // Cerrar objetos y array abiertos
+          const openBraces = (truncated.match(/\{/g)||[]).length - (truncated.match(/\}/g)||[]).length;
+          const openBrackets = (truncated.match(/\[/g)||[]).length - (truncated.match(/\]/g)||[]).length;
+          // Quitar el último objeto incompleto (después de la última },)
+          const lastComplete = truncated.lastIndexOf('},');
+          if(lastComplete > 0) {
+            truncated = truncated.substring(0, lastComplete + 1) + ']';
+            try {
+              const repaired = JSON.parse(truncated);
+              if(Array.isArray(repaired) && repaired.length > 0) {
+                parsed = repaired;
+                addTraceLine('WARN', `JSON truncado — se recuperaron ${repaired.length} convocatoria(s) de las que alcanzaron a generarse.`, 0, true);
+              }
+            } catch(_) {}
+          }
+        }
+      }
+
+      if(!parsed) {
         if(typeof liveResults !== 'undefined' && liveResults.length > 0) {
           opportunities = liveResults;
         } else {
