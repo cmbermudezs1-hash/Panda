@@ -495,7 +495,7 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
     <div class="field">
       <label>Modelo IA <span style="font-weight:400;opacity:0.6">(cerebro del Panda)</span></label>
       <select id="modelo">
-        <option value="gemini-2.5-flash-lite" selected>🆓 Gemini 2.5 Flash — gratis · Google Search</option>
+        <option value="gemini-2.5-flash" selected>🆓 Gemini 2.5 Flash — gratis · Google Search</option>
         <option value="claude-haiku-4-5-20251001">⚡ Haiku — rápido · ~$0.02</option>
         <option value="claude-sonnet-4-6">🔄 Sonnet — balanceado · ~$0.10</option>
         <option value="claude-opus-4-6">🧠 Opus — profundo · ~$0.50</option>
@@ -1138,7 +1138,28 @@ NOTA sobre fuente_usuario y nueva_organizacion_aliada: SOLO incluye "fuente_usua
 
 INSTRUCCIÓN aspectos_importantes: genera EXACTAMENTE 5 puntos concisos (máx 25 palabras c/u) con lo más relevante para un investigador: monto, requisitos, temáticas, socios permitidos y oportunidad estratégica. Cada punto debe iniciar con el número y tema como en el ejemplo.
 
-${isGemini ? `Devuelve SOLO un array JSON puro con todas las convocatorias. Sin markdown, sin backticks, sin texto antes ni después del array. Solo el array JSON.` : `📡 PROTOCOLO DE ENTREGA PROGRESIVA — OBLIGATORIO:
+${isGemini ? `Devuelve SOLO un array JSON puro con todas las convocatorias. Sin markdown, sin backticks, sin texto antes ni después del array.
+
+CAMPOS OBLIGATORIOS en cada objeto del array (NO omitas ninguno):
+- "title": nombre completo de la convocatoria
+- "source": organización que la ofrece
+- "type": tipo de financiación
+- "amount": monto en USD o moneda original
+- "deadline": fecha de cierre DD/MM/AAAA o "PERMANENTE"
+- "status": "ABIERTA", "PERMANENTE" o "PRÓXIMA"
+- "days_left": días restantes (número o null)
+- "description": 2-3 frases describiendo el OBJETIVO de la convocatoria
+- "eligibility": quiénes pueden aplicar
+- "fit_urosario": qué grupo, línea o investigador de URosario puede liderarlo y por qué
+- "aspectos_importantes": array de EXACTAMENTE 5 strings con los aspectos más relevantes
+- "url": URL oficial de la convocatoria
+- "score": puntuación de afinidad 1-100
+- "keywords": array de 3-5 palabras clave temáticas (ej: ["paz","democracia","género"])
+
+EJEMPLO de un objeto correcto:
+{"title":"Convocatoria Ejemplo","source":"Fundación X","type":"Investigación","amount":"USD 50.000","deadline":"30/12/2026","status":"ABIERTA","days_left":180,"description":"Financiamiento para proyectos de investigación en derechos humanos y paz en América Latina.","eligibility":"Universidades y ONGs de países en desarrollo","fit_urosario":"ECH Línea 4 (Ética y ciudadanía) - Carlos Patarroyo puede liderar con apoyo de DeJusticia","aspectos_importantes":["1. Monto hasta USD 50.000 por proyecto","2. Universidades colombianas elegibles","3. Temáticas: DDHH, paz, justicia social","4. Se permiten alianzas internacionales","5. Fecha límite: diciembre 2026"],"url":"https://ejemplo.org/grants","score":85,"keywords":["derechos humanos","paz","justicia social","democracia"]}
+
+Solo el array JSON puro. Sin texto adicional.` : `📡 PROTOCOLO DE ENTREGA PROGRESIVA — OBLIGATORIO:
 Cada vez que VERIFIQUES una convocatoria (vigente + elegible), emite INMEDIATAMENTE una línea con este formato exacto, antes de seguir buscando:
 OPP::{"title":"...","source":"...","type":"...","amount":"...","deadline":"DD/MM/AAAA o PERMANENTE","status":"ABIERTA|PERMANENTE|PRÓXIMA","days_left":número_o_null,"description":"2-3 frases","eligibility":"a quiénes permite aplicar","fit_urosario":"grupo/línea/investigador y por qué","aspectos_importantes":["punto 1","punto 2","punto 3","punto 4","punto 5"],"url":"URL oficial","score":1-100,"keywords":["max 5"]}
 (una sola línea por convocatoria, JSON válido, sin saltos de línea internos)
@@ -1146,7 +1167,21 @@ OPP::{"title":"...","source":"...","type":"...","amount":"...","deadline":"DD/MM
 Al terminar TODAS las búsquedas, emite además el array JSON completo con todas las convocatorias (sin markdown). Esto permite mostrar resultados al usuario mientras sigues trabajando.`}`;
 
   const userPrompt = urlsOnlyMode ? `Analiza las siguientes URLs de convocatorias (hoy ${today}).
-Para CADA URL genera la ficha completa con todos los campos del JSON: title, source, type, amount, deadline, status, days_left, description, eligibility, fit_urosario, aspectos_importantes (5 puntos), url, score, keywords.
+Para CADA URL genera una ficha con TODOS estos campos sin omitir ninguno:
+- title: nombre de la convocatoria
+- source: organización
+- type: tipo de financiación
+- amount: monto
+- deadline: fecha cierre
+- status: ABIERTA/PERMANENTE/PRÓXIMA
+- days_left: días restantes o null
+- description: 2-3 frases con el OBJETIVO de la convocatoria
+- eligibility: quiénes pueden aplicar
+- fit_urosario: qué grupo/línea/investigador de URosario puede liderarlo
+- aspectos_importantes: array de 5 puntos relevantes
+- url: URL oficial
+- score: afinidad 1-100
+- keywords: array de 3-5 palabras clave temáticas
 ${extractedContent.length>0 ?
 extractedContent.map((r,i) => r.success ?
 `\n--- CONVOCATORIA ${i+1}: ${r.url} ---\nTítulo: ${r.title || ''}\n${r.content}\n--- FIN ---` :
@@ -1155,8 +1190,7 @@ extractedContent.map((r,i) => r.success ?
 :
 manualUrls.map((u,i)=>'  '+(i+1)+'. '+u).join('\n')}
 
-Devuelve SOLO el array JSON puro, sin markdown, sin texto antes ni después.
-Prefiero fichas completas y detalladas.` : `Busca convocatorias VIGENTES y ELEGIBLES (hoy ${today}):
+Devuelve SOLO el array JSON puro, sin markdown, sin texto antes ni después.` : `Busca convocatorias VIGENTES y ELEGIBLES (hoy ${today}):
 - Monto buscado: ${profile.monto||'cualquiera'} USD
 - Tipo de financiación: ${profile.tipo}
 - Palabras clave: ${profile.palabras||'según perfil institucional'}
@@ -1229,10 +1263,10 @@ Prefiero 3-4 convocatorias verificadas entregadas RÁPIDO que 8 perfectas que nu
       if(ej.type === 'exceeded_limit' || (ej.status && ej.status === 'exceeded_limit')) {
         throw new Error('⏳ Alcanzaste el límite de uso. Intenta de nuevo más tarde o usa una API key propia.');
       }
-      errMsg = ej.error?.message || `HTTP ${response.status}`;
+      errMsg = ej.detail || ej.error?.message || ej.message || `HTTP ${response.status}`;
     } catch(e) {
       if(e.message.includes('⏳')) throw e;
-      errMsg = `HTTP ${response.status}: ${errText.substring(0,150)}`;
+      errMsg = `HTTP ${response.status}: ${errText.substring(0,200)}`;
     }
     throw new Error(errMsg);
   }
