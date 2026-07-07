@@ -22,6 +22,7 @@ ALLOWED_MODELS = {
     "claude-sonnet-4-6",
     "claude-opus-4-6",
     "gemini-2.5-flash",
+    "gemini-3.1-flash-lite",
 }
 
 MAX_REQUESTS_PER_MINUTE = int(os.environ.get("MAX_RPM", "15"))
@@ -166,7 +167,7 @@ async def handle_gemini(data, model):
     gemini_body = {
         "contents": [{"role": "user", "parts": [{"text": user_msg.strip()}]}],
         "tools": [{"google_search": {}}],
-        "generationConfig": {"maxOutputTokens": min(data.get("max_tokens", 8000), 8192), "temperature": 0.7},
+        "generationConfig": {"maxOutputTokens": min(data.get("max_tokens", 8000), 65536), "temperature": 0.7},
     }
     if system_text:
         gemini_body["system_instruction"] = {"parts": [{"text": system_text}]}
