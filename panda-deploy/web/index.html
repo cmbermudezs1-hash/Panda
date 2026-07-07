@@ -1140,26 +1140,31 @@ INSTRUCCIÓN aspectos_importantes: genera EXACTAMENTE 5 puntos concisos (máx 25
 
 ${isGemini ? `Devuelve SOLO un array JSON puro con todas las convocatorias. Sin markdown, sin backticks, sin texto antes ni después del array.
 
-CAMPOS OBLIGATORIOS en cada objeto del array (NO omitas ninguno):
-- "title": nombre completo de la convocatoria
-- "source": organización que la ofrece
-- "type": tipo de financiación
-- "amount": monto en USD o moneda original
-- "deadline": fecha de cierre DD/MM/AAAA o "PERMANENTE"
-- "status": "ABIERTA", "PERMANENTE" o "PRÓXIMA"
-- "days_left": días restantes (número o null)
-- "description": 2-3 frases describiendo el OBJETIVO de la convocatoria
-- "eligibility": quiénes pueden aplicar
-- "fit_urosario": qué grupo, línea o investigador de URosario puede liderarlo y por qué
-- "aspectos_importantes": array de EXACTAMENTE 5 strings con los aspectos más relevantes
-- "url": URL oficial de la convocatoria
-- "score": puntuación de afinidad 1-100
-- "keywords": array de 3-5 palabras clave temáticas (ej: ["paz","democracia","género"])
+CAMPOS OBLIGATORIOS (SÉ CONCISO para que quepan 15+ convocatorias):
+- "title": nombre de la convocatoria (máx 15 palabras)
+- "source": organización (máx 5 palabras)
+- "type": tipo (máx 3 palabras)
+- "amount": monto
+- "deadline": DD/MM/AAAA o "PERMANENTE"
+- "status": "ABIERTA"/"PERMANENTE"/"PRÓXIMA"
+- "days_left": número o null
+- "description": 1 frase con el objetivo (máx 30 palabras)
+- "eligibility": quiénes aplican (máx 15 palabras)
+- "fit_urosario": línea + investigador + por qué (máx 30 palabras, sin markdown **)
+- "aspectos_importantes": 5 frases cortas (máx 12 palabras cada una)
+- "url": URL oficial
+- "score": 1-100
+- "keywords": 3-5 palabras clave
 
-EJEMPLO de un objeto correcto:
-{"title":"Convocatoria Ejemplo","source":"Fundación X","type":"Investigación","amount":"USD 50.000","deadline":"30/12/2026","status":"ABIERTA","days_left":180,"description":"Financiamiento para proyectos de investigación en derechos humanos y paz en América Latina.","eligibility":"Universidades y ONGs de países en desarrollo","fit_urosario":"ECH Línea 4 (Ética y ciudadanía) - Carlos Patarroyo puede liderar con apoyo de DeJusticia","aspectos_importantes":["1. Monto hasta USD 50.000 por proyecto","2. Universidades colombianas elegibles","3. Temáticas: DDHH, paz, justicia social","4. Se permiten alianzas internacionales","5. Fecha límite: diciembre 2026"],"url":"https://ejemplo.org/grants","score":85,"keywords":["derechos humanos","paz","justicia social","democracia"]}
+EJEMPLO:
+{"title":"Grant Investigación Social 2026","source":"Ford Foundation","type":"Investigación","amount":"USD 50.000","deadline":"30/12/2026","status":"ABIERTA","days_left":180,"description":"Financiamiento para proyectos de DDHH y paz en América Latina.","eligibility":"Universidades y ONGs de países en desarrollo","fit_urosario":"ECH Línea 4 Ética y ciudadanía, Carlos Patarroyo, aliado DeJusticia","aspectos_importantes":["1. Hasta USD 50.000 por proyecto","2. Universidades colombianas elegibles","3. DDHH, paz, justicia social","4. Alianzas internacionales permitidas","5. Cierre diciembre 2026"],"url":"https://ejemplo.org/grants","score":85,"keywords":["DDHH","paz","justicia social"]}
 
-Solo el array JSON puro. Sin texto adicional.` : `📡 PROTOCOLO DE ENTREGA PROGRESIVA — OBLIGATORIO:
+REGLAS ESTRICTAS:
+- Genera UNA SOLA copia del array JSON, NUNCA lo repitas
+- NO incluyas anotaciones [cite] ni [cite: N] dentro del JSON
+- NO uses markdown (**negritas**) dentro del JSON
+- SÉ CONCISO: prefiero 15 convocatorias cortas que 5 largas
+- Solo el array JSON puro, sin texto antes ni después` : `📡 PROTOCOLO DE ENTREGA PROGRESIVA — OBLIGATORIO:
 Cada vez que VERIFIQUES una convocatoria (vigente + elegible), emite INMEDIATAMENTE una línea con este formato exacto, antes de seguir buscando:
 OPP::{"title":"...","source":"...","type":"...","amount":"...","deadline":"DD/MM/AAAA o PERMANENTE","status":"ABIERTA|PERMANENTE|PRÓXIMA","days_left":número_o_null,"description":"2-3 frases","eligibility":"a quiénes permite aplicar","fit_urosario":"grupo/línea/investigador y por qué","aspectos_importantes":["punto 1","punto 2","punto 3","punto 4","punto 5"],"url":"URL oficial","score":1-100,"keywords":["max 5"]}
 (una sola línea por convocatoria, JSON válido, sin saltos de línea internos)
@@ -1438,65 +1443,82 @@ huntBtn.addEventListener('click', async () => {
 
     let opportunities = [];
     try {
-      // Extraer el array JSON de convocatorias del texto.
-      // Limpiar backticks de markdown y anotaciones [cite: N] de Gemini
+      // Limpiar backticks, citas de Gemini, y markdown bold
       let stripped = text.replace(/```json/gi,'').replace(/```/g,'');
-      stripped = stripped.replace(/\[cite:\s*\d+\]/g, '');  // quitar [cite: 3] etc.
-      stripped = stripped.replace(/\[cite:\s*\d+,\s*\d+\]/g, '');  // quitar [cite: 3, 4]
+      stripped = stripped.replace(/\[cite:\s*[\d,\s]+\]/g, '');
+      stripped = stripped.replace(/\*\*/g, '');
+
+      // Gemini a veces duplica la respuesta — tomar solo la PRIMERA copia
+      // Detectar si hay dos arrays JSON (segundo empieza con otro [{)
+      const firstArr = stripped.indexOf('[');
+      if(firstArr !== -1) {
+        const afterFirst = stripped.indexOf('[\n{', firstArr + 10);
+        if(afterFirst !== -1) {
+          // Hay duplicación — usar solo la primera parte
+          stripped = stripped.substring(0, afterFirst);
+        }
+      }
 
       let parsed = null;
-      let searchFrom = 0;
-      while(searchFrom < stripped.length) {
-        const start = stripped.indexOf('[', searchFrom);
-        if(start === -1) break;
-        let depth = 0, i = start;
+
+      // Intentar parsear un array completo
+      const arrStart = stripped.indexOf('[');
+      if(arrStart !== -1) {
+        // Buscar cierre natural del array
+        let depth = 0, i = arrStart;
         for(; i < stripped.length; i++) {
           if(stripped[i]==='[') depth++;
           else if(stripped[i]===']') { depth--; if(depth===0) break; }
         }
-        if(i < stripped.length) {
-          const candidate = stripped.substring(start, i+1);
+        if(depth === 0 && i < stripped.length) {
+          // Array completo encontrado
           try {
-            const attempt = JSON.parse(candidate);
-            if(Array.isArray(attempt) && attempt.length > 0 
-               && typeof attempt[0] === 'object' && attempt[0] !== null
-               && (attempt[0].title || attempt[0].titulo || attempt[0].source || attempt[0].fuente || attempt[0].url || attempt[0].description || attempt[0].descripcion)) {
-              if(!parsed || attempt.length > parsed.length) parsed = attempt;
-            }
+            parsed = JSON.parse(stripped.substring(arrStart, i+1));
           } catch(_) {}
         }
-        searchFrom = start + 1;
-      }
 
-      // Si no se encontró array completo, intentar reparar JSON truncado
-      if(!parsed) {
-        // Buscar inicio de array y agregar cierre faltante
-        const arrStart = stripped.indexOf('[');
-        if(arrStart !== -1) {
+        // Si no hay array completo, reparar truncación
+        if(!parsed) {
           let truncated = stripped.substring(arrStart);
-          // Cerrar objetos y array abiertos
-          const openBraces = (truncated.match(/\{/g)||[]).length - (truncated.match(/\}/g)||[]).length;
-          const openBrackets = (truncated.match(/\[/g)||[]).length - (truncated.match(/\]/g)||[]).length;
-          // Quitar el último objeto incompleto (después de la última },)
-          const lastComplete = truncated.lastIndexOf('},');
-          if(lastComplete > 0) {
-            truncated = truncated.substring(0, lastComplete + 1) + ']';
+          // Encontrar el último objeto completo (termina en })
+          const lastCloseBrace = truncated.lastIndexOf('}');
+          if(lastCloseBrace > 0) {
+            // Cortar después del último } y cerrar el array
+            let repaired = truncated.substring(0, lastCloseBrace + 1);
+            // Limpiar coma trailing si existe
+            repaired = repaired.replace(/,\s*$/, '');
+            repaired = repaired + ']';
             try {
-              const repaired = JSON.parse(truncated);
-              if(Array.isArray(repaired) && repaired.length > 0) {
-                parsed = repaired;
-                addTraceLine('WARN', `JSON truncado — se recuperaron ${repaired.length} convocatoria(s) de las que alcanzaron a generarse.`, 0, true);
+              const arr = JSON.parse(repaired);
+              if(Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'object') {
+                // Filtrar objetos incompletos (sin title)
+                parsed = arr.filter(o => o.title || o.titulo);
+                addTraceLine('WARN', `JSON truncado — se recuperaron ${parsed.length} convocatoria(s).`, 0, true);
               }
-            } catch(_) {}
+            } catch(_) {
+              // Intentar extraer objetos individuales con regex
+              const objMatches = truncated.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g) || [];
+              const recovered = [];
+              for(const m of objMatches) {
+                try {
+                  const obj = JSON.parse(m);
+                  if(obj.title || obj.titulo) recovered.push(obj);
+                } catch(_) {}
+              }
+              if(recovered.length > 0) {
+                parsed = recovered;
+                addTraceLine('WARN', `JSON roto — se rescataron ${recovered.length} convocatoria(s).`, 0, true);
+              }
+            }
           }
         }
       }
 
-      if(!parsed) {
+      if(!parsed || parsed.length === 0) {
         if(typeof liveResults !== 'undefined' && liveResults.length > 0) {
           opportunities = liveResults;
         } else {
-          throw new Error('No se encontró array JSON de convocatorias válido. Revisa la respuesta cruda abajo.');
+          throw new Error('No se encontró array JSON de convocatorias válido.');
         }
       } else {
         opportunities = parsed;
