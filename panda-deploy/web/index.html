@@ -1586,6 +1586,7 @@ huntBtn.addEventListener('click', async () => {
     }
 
     // ══ AUTO-CONTINUACIÓN: si hay pocas convocatorias y es Gemini, buscar más ══
+    const isGemini = modelId.startsWith('gemini');
     const MIN_TARGET = 8;
     const MAX_ROUNDS = 2;
     if(isGemini && opportunities.length < MIN_TARGET && opportunities.length > 0 && !huntCancelled) {
