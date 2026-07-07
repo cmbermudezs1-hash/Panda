@@ -188,6 +188,16 @@ async def handle_gemini(data, model):
             full_text += part.get("text", "")
     if not full_text:
         full_text = "No se encontraron resultados."
+    # Limpiar duplicación de Gemini y anotaciones [cite]
+    import re
+    full_text = re.sub(r'\[cite:\s*[\d,\s]+\]', '', full_text)
+    full_text = full_text.replace('**', '')
+    # Si Gemini duplicó el array, tomar solo la primera copia
+    parts = full_text.split('```json')
+    if len(parts) > 2:
+        full_text = '```json' + parts[1]
+    elif len(parts) == 2:
+        full_text = parts[1].split('```')[0] if '```' in parts[1] else parts[1]
     async def fake_stream():
         events = [
             f'event: message_start\ndata: {{"type":"message_start","message":{{"id":"msg_gemini","type":"message","role":"assistant","content":[],"model":"{model}","stop_reason":null}}}}\n\n',
