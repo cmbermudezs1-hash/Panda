@@ -1656,11 +1656,48 @@ huntBtn.addEventListener('click', async () => {
       }
       console.log('PANDA · Parsed OK, primer objeto:', JSON.stringify(opportunities[0]).substring(0,300));
     } catch(parseErr) {
-      addTraceLine('ERROR', 'Parse JSON falló. Mostrando respuesta cruda.', 0, true);
-      document.getElementById('opportunities').innerHTML = `<div class="opportunity"><div class="opp-description"><strong>Respuesta del agente:</strong><br><br>${text.replace(/\n/g,'<br>')}</div></div>`;
-      document.getElementById('count').textContent = 'RESPUESTA CRUDA';
-      document.getElementById('results').classList.add('active');
-      return;
+      // Parse falló — intentar auto-reintentar si es Gemini
+      const isGemini = modelId.startsWith('gemini');
+      if(isGemini && !huntCancelled) {
+        addTraceLine('WARN', 'JSON incompleto. El Panda reintenta la búsqueda…', 0, true);
+        showSpinner('El Panda reintenta la cacería…', 'La respuesta anterior fue incompleta, buscando de nuevo');
+        try {
+          const retryResult = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent, []);
+          const retryText = (retryResult.text || '').replace(/```json/gi,'').replace(/```/g,'').replace(/\[cite:\s*[\d,\s]+\]/g, '').replace(/\*\*/g, '');
+          
+          // Intentar parsear el reintento
+          const rStart = retryText.indexOf('[');
+          if(rStart !== -1) {
+            const rLast = retryText.lastIndexOf('}');
+            if(rLast > rStart) {
+              let rJson = retryText.substring(rStart, rLast + 1).replace(/,\s*$/, '') + ']';
+              try {
+                const rParsed = JSON.parse(rJson);
+                if(Array.isArray(rParsed) && rParsed.length > 0) {
+                  opportunities = rParsed.filter(o => o.title || o.titulo);
+                  addTraceLine('FOUND', `Reintento exitoso: ${opportunities.length} convocatoria(s) recuperadas`, 0);
+                }
+              } catch(_) {}
+            }
+          }
+          if(opportunities.length === 0) throw parseErr;
+        } catch(retryErr) {
+          // El reintento también falló
+          addTraceLine('ERROR', 'Parse JSON falló después de reintentar. Mostrando respuesta cruda.', 0, true);
+          hideSpinner();
+          document.getElementById('opportunities').innerHTML = `<div class="opportunity"><div class="opp-description"><strong>Respuesta del agente:</strong><br><br>${text.replace(/\n/g,'<br>')}</div></div>`;
+          document.getElementById('count').textContent = 'RESPUESTA CRUDA';
+          document.getElementById('results').classList.add('active');
+          return;
+        }
+      } else {
+        addTraceLine('ERROR', 'Parse JSON falló. Mostrando respuesta cruda.', 0, true);
+        hideSpinner();
+        document.getElementById('opportunities').innerHTML = `<div class="opportunity"><div class="opp-description"><strong>Respuesta del agente:</strong><br><br>${text.replace(/\n/g,'<br>')}</div></div>`;
+        document.getElementById('count').textContent = 'RESPUESTA CRUDA';
+        document.getElementById('results').classList.add('active');
+        return;
+      }
     }
 
     // ══ AUTO-CONTINUACIÓN: si hay pocas convocatorias y es Gemini, buscar más ══
