@@ -1059,7 +1059,7 @@ function renderOpportunities(opportunities) {
 }
 
 // ── CALL AGENT ──
-async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], manualUrls=[], modelId='claude-sonnet-4-6', intensity='normal', urlsOnlyMode=false, extractedContent=[]) {
+async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], manualUrls=[], modelId='claude-sonnet-4-6', intensity='normal', urlsOnlyMode=false, extractedContent=[], excludeTitles=[]) {
   const profileContext = buildProfileContext(profile.unit);
   const today = new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
   const todayISO = new Date().toISOString().split('T')[0];
@@ -1299,7 +1299,8 @@ ${isGemini ? `PROCESO:
 4. AL LLEGAR A 10 BÚSQUEDAS: DETENTE y entrega el array JSON inmediatamente con lo que tengas verificado
 5. El JSON debe ser puro, sin markdown, sin texto antes ni después`}
 
-Prefiero 3-4 convocatorias verificadas entregadas RÁPIDO que 8 perfectas que nunca llegan.`;
+Prefiero 3-4 convocatorias verificadas entregadas RÁPIDO que 8 perfectas que nunca llegan.
+${excludeTitles.length>0?`\n⚠ CONVOCATORIAS YA ENCONTRADAS — NO LAS REPITAS:\n${excludeTitles.map((t,i)=>(i+1)+'. '+t).join('\n')}\nBusca convocatorias DIFERENTES a las anteriores. Usa OTRAS fuentes y OTROS términos de búsqueda.`:''}`;
 
   const messages = [{role:'user', content:userPrompt}];
   let finalText = '';
@@ -1549,7 +1550,7 @@ huntBtn.addEventListener('click', async () => {
     for(let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       if(huntCancelled) throw new Error('Búsqueda cancelada por el usuario.');
       try {
-        result = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent);
+        result = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent, []);
         break;
       } catch(e) {
         const isRetryable = e.message.includes('503') || e.message.includes('high demand') || e.message.includes('UNAVAILABLE') || e.message.includes('TIMEOUT');
@@ -1679,12 +1680,7 @@ huntBtn.addEventListener('click', async () => {
         document.getElementById('results').classList.add('active');
 
         try {
-          const contPrompt = `Ya encontraste estas ${found.length} convocatorias: ${found.map((t,i)=>(i+1)+'. '+t).join('; ')}.
-
-Busca MÁS convocatorias DIFERENTES a las anteriores. NO repitas ninguna. Busca en OTRAS fuentes y con OTROS términos.
-Devuelve SOLO un array JSON puro con las nuevas convocatorias (mismo formato que antes). Sin texto adicional. Sin [cite]. Sin duplicar.`;
-
-          const contResult = await callAgent(profile, sources, selectedLines, sourcesWithUrls, [], modelId, intensity, false, []);
+          const contResult = await callAgent(profile, sources, selectedLines, sourcesWithUrls, [], modelId, intensity, false, [], found);
           // Parse continuation results using same logic
           let contText = contResult.text || '';
           contText = contText.replace(/```json/gi,'').replace(/```/g,'').replace(/\[cite:\s*[\d,\s]+\]/g, '').replace(/\*\*/g, '');
