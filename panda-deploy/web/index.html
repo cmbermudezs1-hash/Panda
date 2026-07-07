@@ -1101,7 +1101,7 @@ PERFIL INSTITUCIONAL URosario:
 ${profileContext}
 
 
-BANCO DE ALIADOS ESTRATÉGICOS UROSARIO (145 aliados verificados):
+${isGemini ? `ALIADOS CLAVE UROSARIO (resumen): PNUD, CEPAL, GIZ, USAID, ACNUR, OIM, KAS, FESCOL, DeJusticia, CINEP, FIP, WWF, UNESCO, Wellcome Trust, CLACSO, FLACSO, NDI, CICR, JEP, Amnistía Internacional, HRW. Menciona aliados relevantes en fit_urosario.` : `BANCO DE ALIADOS ESTRATÉGICOS UROSARIO (145 aliados verificados):
 
 GEPI-FEIPU:
 • Línea 1 (Política exterior): Cancillería/Min. Relaciones Exteriores, PNUD Colombia, CEPAL Colombia, FIP, FESCOL, Konrad Adenauer Stiftung, OEA, U. de los Andes–CIDER, U. Nacional–IEP, CLACSO, FLACSO, SELA, CFR, Chatham House, SIPRI
@@ -1119,10 +1119,10 @@ ECH:
 • Línea 7 (Comunicación, medios y TIC): MinTIC, ANTV, Fundación Karisma, Colombia Check, Linterna Verde, UNESCO Colombia, U. Javeriana–Comunicación, Reuters Institute, ICA, MIT Media Lab, Algorithm Watch, EFF
 • Línea 8 (Humanidades ambientales): Min. Ambiente, Parques Nacionales, WWF Colombia, Foro Nacional Ambiental, Fundación Gaia Amazonas, GIZ Colombia, U. Nacional–IDEA, U. Andes–CIDER, IPBES, Rachel Carson Center, ESEH, Amazon Conservation Association, Rainforest Alliance
 
-INSTRUCCIÓN SOBRE ALIADOS: Cuando encuentres una convocatoria, verifica si alguno de los aliados listados arriba ya tiene relación con esa fuente o temática — esto aumenta la probabilidad de éxito y debe mencionarse en el fit_urosario. Los aliados también son potenciales co-ejecutores o socios en propuestas conjuntas.
+INSTRUCCIÓN SOBRE ALIADOS: Cuando encuentres una convocatoria, verifica si alguno de los aliados listados arriba ya tiene relación con esa fuente o temática — esto aumenta la probabilidad de éxito y debe mencionarse en el fit_urosario. Los aliados también son potenciales co-ejecutores o socios en propuestas conjuntas.`}
 
 
-CONTEXTO INSTITUCIONAL EESPI — BASE DE CONOCIMIENTO (uso interno, NO incluir en mailings ni entregables):
+${isGemini ? `CONTEXTO EESPI (resumen): 8 capacidades: investigación aplicada, consultoría, evaluación de impacto, formación, inteligencia de datos, prospectiva, participación/diálogo, innovación social. Sinónimos clave: paz=justicia transicional/DDR/reconciliación, democracia=gobernabilidad/participación, territorio=ordenamiento territorial/gobernanza, migración=desplazamiento/refugiados, género=equidad/interseccionalidad, DDHH=DIH/acceso a justicia, ambiente=cambio climático/biodiversidad, digital=IA/gobierno digital. ODS: 1,3,4,5,8,10,11,13,16,17. Usa estos sinónimos para ampliar búsquedas.` : `CONTEXTO INSTITUCIONAL EESPI — BASE DE CONOCIMIENTO (uso interno, NO incluir en mailings ni entregables):
 
 La Escuela de Estudios Sociales, Políticos e Internacionales (EESPI) de la Universidad del Rosario integra las ciencias humanas, sociales, políticas e internacionales. Cuenta con 2 grupos A1 Minciencias (GEPI COL0025282 y Estudios sobre Identidad COL0003937), 12 áreas de especialización, 8 observatorios/laboratorios/centros, y 51 expertos disponibles.
 
@@ -1174,7 +1174,7 @@ Cuando construyas las queries de búsqueda, utiliza los términos, sinónimos y 
 - Cuando identifiques aliados, cruza con los SECTORES de aplicación y TIPOS DE PROYECTOS
 NO incluyas esta información en el JSON de salida, ni en mailings, ni en entregables al usuario. Es contexto interno para mejorar la búsqueda.
 
-Tu trabajo:
+`}Tu trabajo:
 1. ${isGemini ? 'Buscar en Google convocatorias vigentes usando las lógicas anteriores' : 'Buscar con web_search en las fuentes listadas Y en toda la web con las lógicas anteriores'}
 2. Verificar elegibilidad: ¿puede aplicar una universidad colombiana, una ONG o una entidad colombiana?
 3. Verificar vigencia: fecha posterior a ${todayISO} o ventanilla permanente
@@ -1585,6 +1585,57 @@ huntBtn.addEventListener('click', async () => {
       return;
     }
 
+    // ══ AUTO-CONTINUACIÓN: si hay pocas convocatorias y es Gemini, buscar más ══
+    const MIN_TARGET = 8;
+    const MAX_ROUNDS = 2;
+    if(isGemini && opportunities.length < MIN_TARGET && opportunities.length > 0 && !huntCancelled) {
+      let allOpps = [...opportunities];
+      for(let round = 1; round <= MAX_ROUNDS; round++) {
+        if(allOpps.length >= MIN_TARGET || huntCancelled) break;
+        const found = allOpps.map(o => o.title || o.titulo || '').filter(Boolean);
+        addTraceLine('CONTINUE', `Solo ${allOpps.length} convocatoria(s) — buscando más (ronda ${round+1})…`, 0);
+
+        // Renderizar lo que tenemos hasta ahora
+        renderOpportunities(allOpps);
+        document.getElementById('results').classList.add('active');
+
+        try {
+          const contPrompt = `Ya encontraste estas ${found.length} convocatorias: ${found.map((t,i)=>(i+1)+'. '+t).join('; ')}.
+
+Busca MÁS convocatorias DIFERENTES a las anteriores. NO repitas ninguna. Busca en OTRAS fuentes y con OTROS términos.
+Devuelve SOLO un array JSON puro con las nuevas convocatorias (mismo formato que antes). Sin texto adicional. Sin [cite]. Sin duplicar.`;
+
+          const contResult = await callAgent(profile, sources, selectedLines, sourcesWithUrls, [], modelId, intensity, false, []);
+          // Parse continuation results using same logic
+          let contText = contResult.text || '';
+          contText = contText.replace(/```json/gi,'').replace(/```/g,'').replace(/\[cite:\s*[\d,\s]+\]/g, '').replace(/\*\*/g, '');
+          const contFirst = contText.indexOf('[');
+          if(contFirst !== -1) {
+            const contLast = contText.lastIndexOf('}');
+            if(contLast > contFirst) {
+              let contJson = contText.substring(contFirst, contLast + 1).replace(/,\s*$/, '') + ']';
+              try {
+                const contParsed = JSON.parse(contJson);
+                if(Array.isArray(contParsed)) {
+                  // Filtrar duplicados por título
+                  const existingTitles = new Set(allOpps.map(o => (o.title||'').toLowerCase()));
+                  const newOpps = contParsed.filter(o => o.title && !existingTitles.has(o.title.toLowerCase()));
+                  allOpps = allOpps.concat(newOpps);
+                  addTraceLine('FOUND', `+${newOpps.length} nuevas convocatoria(s) (total: ${allOpps.length})`, 0);
+                }
+              } catch(_) {
+                addTraceLine('WARN', 'Ronda de continuación no generó JSON válido.', 0, true);
+              }
+            }
+          }
+        } catch(e) {
+          addTraceLine('WARN', `Continuación falló: ${e.message.substring(0,80)}`, 0, true);
+          break;
+        }
+      }
+      opportunities = allOpps;
+    }
+
     addTraceLine('REPORT', `${opportunities.length} convocatoria(s) rankeadas con match institucional`, 0);
     // Debug: show first result structure
     if(opportunities.length > 0) {
@@ -1870,10 +1921,11 @@ async function saveToSheets(opps) {
     status: o.status || '',
     score: o.score || '',
     url: o.url || '',
-    description: (o.desc || o.description || '').substring(0, 300),
+    description: (o.desc || o.description || '').substring(0, 500),
     keywords: Array.isArray(o.kws || o.keywords) ? (o.kws || o.keywords).join(', ') : '',
-    fit_urosario: (o.fit || '').substring(0, 300),
-    aspectos: Array.isArray(o.aspectos || o.aspectos_importantes) ? (o.aspectos || o.aspectos_importantes).join(' | ') : ''
+    fit_urosario: (o.fit || o.fit_urosario || '').substring(0, 500),
+    aspectos: Array.isArray(o.aspectos || o.aspectos_importantes) ? (o.aspectos || o.aspectos_importantes).join(' | ') : '',
+    eligibility: (o.elig || o.eligibility || '').substring(0, 200)
   }));
   try {
     await fetch(PANDA_API_URL.replace('/v1/messages', '/sheets/save'), {
@@ -2007,8 +2059,9 @@ async function loadSharedHistory() {
         ${g.items.map(r => {
           const desc = r['Descripción'] || r.description || r.Descripcion || '';
           const kws = (r['Palabras clave'] || r.keywords || r.Keywords || '').split(',').map(k=>k.trim()).filter(Boolean);
-          const fit = r.fit_urosario || r.Fit || r['Fit URosario'] || '';
+          const fit = r.fit_urosario || r['Fit URosario'] || r.Fit || '';
           const aspectos = (r.aspectos || r.Aspectos || '').split(' | ').filter(Boolean);
+          const elig = r.eligibility || r.Eligibility || r.Elegibilidad || '';
           return `
           <div style="padding:12px 0;border-bottom:1px solid #eee;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
@@ -2018,6 +2071,7 @@ async function loadSharedHistory() {
             <div style="font-size:12px;color:var(--gray-mid);margin-top:4px;">${r.Fuente||r.source||''} ${r.Monto||r.amount?'· '+(r.Monto||r.amount):''} ${r.Cierre||r.deadline?'· Cierre: '+(r.Cierre||r.deadline):''} ${r.Estado||r.status?'· '+(r.Estado||r.status):''}</div>
             ${desc?`<div style="font-size:12px;line-height:1.6;color:#555;margin-top:8px;padding:8px 12px;background:#fafafa;border-left:3px solid var(--gray-light);">${desc}</div>`:''}
             ${kws.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${kws.map(k=>'<span style="padding:2px 7px;background:var(--black);color:var(--yellow);font-family:\'Barlow Condensed\',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">// '+k+'</span>').join('')}</div>`:''}
+            ${elig?`<div style="margin-top:8px;padding:8px 12px;background:rgba(77,255,145,0.06);border-left:3px solid #4dff91;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#1a6b40;margin-bottom:4px;">✓ Elegibilidad verificada</div><div style="font-size:11px;line-height:1.6;color:#555;">${elig}</div></div>`:''}
             ${aspectos.length?`<div style="margin-top:8px;padding:8px 12px;background:#fafaf8;border-left:3px solid #ccc;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#555;margin-bottom:4px;">⊞ Aspectos importantes</div><ol style="margin:0 0 0 16px;padding:0;font-size:11px;line-height:1.7;color:#555;">${aspectos.map(a=>'<li>'+a+'</li>').join('')}</ol></div>`:''}
             ${fit?`<div style="margin-top:8px;padding:8px 12px;background:rgba(244,208,63,0.07);border-left:3px solid var(--yellow);"><div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#9a7a00;margin-bottom:4px;">⌬ Match URosario</div><div style="font-size:11px;line-height:1.6;color:#555;">${fit}</div></div>`:''}
             ${(r.URL||r.url)?`<a href="${r.URL||r.url}" target="_blank" style="display:inline-block;margin-top:8px;font-size:11px;color:var(--black);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;padding:6px 14px;background:var(--yellow);border:1px solid var(--black);">Ver convocatoria →</a>`:''}
@@ -2050,9 +2104,9 @@ function restoreSharedSearch(items) {
     status: r.Estado || r.status || 'ABIERTA',
     days_left: null,
     description: r['Descripción'] || r.description || r.Descripcion || '',
-    eligibility: '',
+    eligibility: r.eligibility || r.Eligibility || r.Elegibilidad || '',
     aspectos_importantes: (r.aspectos || r.Aspectos || '').split(' | ').filter(Boolean),
-    fit_urosario: r.fit_urosario || r.Fit || '',
+    fit_urosario: r.fit_urosario || r['Fit URosario'] || r.Fit || '',
     url: r.URL || r.url || '',
     score: parseInt(r.Score || r.score) || 50,
     keywords: (r['Palabras clave'] || r.keywords || r.Keywords || '').split(',').map(k => k.trim()).filter(Boolean)
@@ -2066,11 +2120,12 @@ function restoreSearch(i) {
   const hist = loadHistory();
   const h = hist[i];
   if(!h || !h.resultados) return;
-  // Re-render con los datos guardados (ya normalizados)
   const fake = h.resultados.map(o => ({
     title:o.title, source:o.source, type:o.type, amount:o.amount,
     deadline:o.deadline, status:o.status, days_left:o.days,
-    description:o.desc, fit_urosario:o.fit, url:o.url, score:o.score, keywords:o.kws
+    description:o.desc, eligibility:o.elig,
+    aspectos_importantes:o.aspectos||[],
+    fit_urosario:o.fit, url:o.url, score:o.score, keywords:o.kws||[]
   }));
   renderOpportunities(fake);
   document.getElementById('results').classList.add('active');
