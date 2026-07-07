@@ -276,6 +276,18 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
 .login-err{font-size:12px;color:#c00;margin-top:8px;min-height:16px}
 .user-badge{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#333;cursor:pointer;padding:4px 10px;background:rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.15)}
 .user-badge:hover{background:rgba(0,0,0,0.15)}
+
+/* ── SPINNER ── */
+.panda-spinner{display:flex;align-items:center;gap:12px;padding:16px 24px;background:rgba(244,208,63,0.06);border-left:3px solid var(--yellow);margin:12px 0;animation:spinnerPulse 1.5s ease-in-out infinite}
+.panda-spinner-icon{font-size:24px;animation:spinnerBounce 1s ease-in-out infinite}
+.panda-spinner-text{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--black)}
+.panda-spinner-sub{font-size:11px;color:var(--gray-mid);font-weight:400;letter-spacing:0;text-transform:none;margin-top:2px}
+@keyframes spinnerPulse{0%,100%{opacity:1}50%{opacity:0.6}}
+@keyframes spinnerBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.panda-done{display:flex;align-items:center;gap:12px;padding:16px 24px;background:rgba(77,255,145,0.08);border-left:3px solid #4dff91;margin:12px 0}
+.panda-done-icon{font-size:24px}
+.panda-done-text{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:var(--black)}
+.panda-done-sub{font-size:12px;color:var(--gray-mid);font-weight:400;letter-spacing:0;text-transform:none;margin-top:2px}
 </style>
 </head>
 <body>
@@ -1422,6 +1434,43 @@ function cancelHunt() {
   if(cancelReject) { cancelReject(new Error('Búsqueda cancelada por el usuario.')); cancelReject = null; }
 }
 
+// ══ SPINNER Y MENSAJES DE ESTADO ══
+function showSpinner(msg, sub) {
+  let el = document.getElementById('pandaSpinner');
+  if(!el) {
+    el = document.createElement('div');
+    el.id = 'pandaSpinner';
+    const opps = document.getElementById('opportunities');
+    if(opps) opps.parentNode.insertBefore(el, opps);
+  }
+  el.className = 'panda-spinner';
+  el.innerHTML = `<div class="panda-spinner-icon">🐼</div><div><div class="panda-spinner-text">${msg}</div>${sub?`<div class="panda-spinner-sub">${sub}</div>`:''}</div>`;
+}
+
+function hideSpinner() {
+  const el = document.getElementById('pandaSpinner');
+  if(el) el.remove();
+}
+
+function showDone(count) {
+  hideSpinner();
+  let el = document.getElementById('pandaDone');
+  if(!el) {
+    el = document.createElement('div');
+    el.id = 'pandaDone';
+    const opps = document.getElementById('opportunities');
+    if(opps) opps.parentNode.insertBefore(el, opps);
+  }
+  el.className = 'panda-done';
+  el.innerHTML = `<div class="panda-done-icon">🎯</div><div><div class="panda-done-text">El Panda ha cazado ${count} convocatoria${count!==1?'s':''}</div><div class="panda-done-sub">Selecciona las que quieras incluir en el mailing con el checkbox "Incluir"</div></div>`;
+  setTimeout(() => { if(el.parentNode) el.style.animation = 'none'; }, 5000);
+}
+
+function hideDone() {
+  const el = document.getElementById('pandaDone');
+  if(el) el.remove();
+}
+
 // ── HUNT BUTTON ──
 const huntBtn = document.getElementById('huntBtn');
 huntBtn.addEventListener('click', async () => {
@@ -1468,6 +1517,9 @@ huntBtn.addEventListener('click', async () => {
 
   document.getElementById('results').classList.remove('active');
   clearTrace();
+  hideSpinner();
+  hideDone();
+  showSpinner('El Panda salió de cacería…', 'Buscando convocatorias vigentes en las fuentes activas');
 
   const unitLabel = selectedUnit==='ambas'?'ECH + FEIPU':selectedUnit.toUpperCase();
   if(urlsOnlyMode) {
@@ -1485,10 +1537,35 @@ huntBtn.addEventListener('click', async () => {
     // Si hay URLs del usuario, extraer contenido con Firecrawl primero
     let extractedContent = [];
     if(manualUrls.length > 0) {
+      showSpinner('Extrayendo contenido de tus URLs…', `Procesando ${manualUrls.length} URL(s) con Firecrawl`);
       extractedContent = await extractWithFirecrawl(manualUrls);
     }
 
-    const {text, toolUses, liveOpps: liveResults} = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent);
+    showSpinner('El Panda está rastreando…', 'Analizando fuentes y buscando convocatorias vigentes');
+
+    // Auto-retry para errores transitorios (503, timeout)
+    let result = null;
+    const MAX_RETRIES = 3;
+    for(let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      if(huntCancelled) throw new Error('Búsqueda cancelada por el usuario.');
+      try {
+        result = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent);
+        break;
+      } catch(e) {
+        const isRetryable = e.message.includes('503') || e.message.includes('high demand') || e.message.includes('UNAVAILABLE') || e.message.includes('TIMEOUT');
+        if(isRetryable && attempt < MAX_RETRIES) {
+          const wait = attempt * 15;
+          addTraceLine('RETRY', `Error temporal (${e.message.substring(0,60)}…). Reintentando en ${wait}s (intento ${attempt+1}/${MAX_RETRIES})…`, 0, true);
+          showSpinner('El Panda descansa un momento…', `Reintentando en ${wait} segundos (intento ${attempt+1} de ${MAX_RETRIES})`);
+          await new Promise(res => setTimeout(res, wait * 1000));
+          showSpinner('El Panda reintenta la cacería…', `Intento ${attempt+1} de ${MAX_RETRIES}`);
+          continue;
+        }
+        throw e;
+      }
+    }
+
+    const {text, toolUses, liveOpps: liveResults} = result;
 
     if(toolUses.length > 0) addTraceLine('TOOL', `web_search ejecutado ${toolUses.length} vez(ces) en fuentes externas`, 0);
     addTraceLine('VERIFY', `Filtrando solo convocatorias VIGENTES (hoy: ${new Date().toLocaleDateString('es-CO')})`, 0);
@@ -1595,6 +1672,7 @@ huntBtn.addEventListener('click', async () => {
         if(allOpps.length >= MIN_TARGET || huntCancelled) break;
         const found = allOpps.map(o => o.title || o.titulo || '').filter(Boolean);
         addTraceLine('CONTINUE', `Solo ${allOpps.length} convocatoria(s) — buscando más (ronda ${round+1})…`, 0);
+        showSpinner('El Panda sigue cazando…', `${allOpps.length} encontradas, buscando más (ronda ${round+1} de ${MAX_ROUNDS+1})`);
 
         // Renderizar lo que tenemos hasta ahora
         renderOpportunities(allOpps);
@@ -1655,6 +1733,9 @@ Devuelve SOLO un array JSON puro con las nuevas convocatorias (mismo formato que
     }
     renderOpportunities(opportunities);
     renderAlliesSuggestion(opportunities);
+    hideSpinner();
+    showDone(opportunities.length);
+    addTraceLine('REPORT', `🎯 El Panda ha cazado ${opportunities.length} convocatoria(s)`, 0);
     // Guardar búsqueda en historial
     saveSearchToHistory({
       unit: selectedUnit,
@@ -1664,6 +1745,7 @@ Devuelve SOLO un array JSON puro con las nuevas convocatorias (mismo formato que
     }, currentOpps);
 
   } catch(err) {
+    hideSpinner();
     const isCancelled = err.message.includes('cancelada');
     const isGateway = err.message.startsWith('GATEWAY:');
     const isTimeout = err.message.startsWith('TIMEOUT:');
