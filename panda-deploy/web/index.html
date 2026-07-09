@@ -1085,12 +1085,30 @@ SOLO incluye convocatorias que cumplan AL MENOS UNA de estas condiciones:
 3. PRÓXIMAS A ABRIR: apertura confirmada en los próximos 90 días
 NUNCA incluyas convocatorias vencidas, cerradas o sin fecha verificable.
 
-⚠️ REGLA CRÍTICA DE ELEGIBILIDAD — OBLIGATORIA:
-Solo incluye convocatorias donde AL MENOS UNA de estas condiciones sea verdadera:
-A. Pueden aplicar UNIVERSIDADES COLOMBIANAS (públicas o privadas)
-B. Pueden aplicar ORGANIZACIONES SIN ÁNIMO DE LUCRO (ONGs, fundaciones, asociaciones)
-C. Pueden aplicar ENTIDADES COLOMBIANAS en general (instituciones, centros de investigación, consorcios)
-Si la convocatoria excluye explícitamente a universidades, ONGs y entidades colombianas → DESCARTARLA.
+⚠️ REGLA CRÍTICA DE ELEGIBILIDAD — 5 CRITERIOS OBLIGATORIOS:
+
+1. QUIÉN PUEDE APLICAR (AL MENOS UNO):
+   ✅ Universidades colombianas (públicas o privadas)
+   ✅ Instituciones de educación superior
+   ✅ Organizaciones sin ánimo de lucro (como la Universidad del Rosario)
+   ✅ Entidades académicas o de investigación de países en desarrollo
+   ❌ EXCLUIR: convocatorias solo para empresas con lucro, solo personas naturales, o que excluyan universidades y Colombia
+
+2. TIPO DE ACTIVIDAD (AL MENOS UNO):
+   ✅ Investigación aplicada, I+D, investigación-acción
+   ✅ Consultoría, asistencia técnica, fortalecimiento institucional
+   ✅ Educación continua, formación, capacitación
+   ✅ Evaluación, monitoreo, sistematización, transferencia de conocimiento
+   ✅ Publicaciones, divulgación, apropiación del conocimiento
+   ✅ Observatorios, analítica de datos, inteligencia territorial
+   ❌ EXCLUIR: convocatorias exclusivamente para construcción de infraestructura física o startups sin componente de conocimiento
+
+3. TEMÁTICAS (AL MENOS UNA del portafolio EESPI):
+   Paz, conflicto, democracia, gobernanza, territorio, migración, género, DDHH, ambiente, digital, IA, educación, salud, cultura, seguridad, ciencia, comunicación, ética, innovación social, relaciones internacionales
+
+4. VIGENCIA: fecha de cierre posterior a ${todayISO} o ventanilla permanente
+
+5. APLICA DESDE COLOMBIA: la institución puede aplicar desde Colombia sin restricción de residencia
 
 ${urlsOnlyMode ? `⏱ MODO SOLO ANÁLISIS:
 NO realices búsquedas web adicionales. Solo analiza las URLs que el usuario te proporciona. Para cada URL genera la ficha completa: título, fuente, monto, fecha, descripción, aspectos importantes, elegibilidad, fit_urosario, score y keywords.` : isGemini ? `⏱ INSTRUCCIÓN DE BÚSQUEDA:
@@ -1101,14 +1119,40 @@ Tienes un MÁXIMO de ${cfg.max} búsquedas web en total. Úsalas estratégicamen
 - Al agotar el presupuesto: DETENTE INMEDIATAMENTE y entrega el JSON con lo verificado hasta ese punto
 - NO sigas explorando indefinidamente. Convergencia rápida > exhaustividad.`}
 
-ESTRATEGIA DE BÚSQUEDA — NO TE LIMITES A LAS FUENTES LISTADAS:
-Explora la web usando estas lógicas (elige las 6-7 más prometedoras según las palabras clave del usuario):
-• "call for proposals" OR "open call" OR "grant" + ("universities" OR "higher education" OR "nonprofit" OR "civil society") + 2026
-• "convocatoria" OR "llamado" + ("universidades" OR "organizaciones sin ánimo de lucro" OR "entidades colombianas") + 2026
-• Embajadas en Colombia: Alemania, Francia, EE.UU., Reino Unido, Japón, Corea, Países Bajos, Canadá, Suecia, Suiza, Israel
-• Agencias de cooperación: DAAD, British Council, Institut Français, JICA, KOICA, Norad, SDC, AFD, SIDA, Global Affairs Canada
-• Repositorios globales: Devex, Candid/Foundation Center, UN Women Opportunities, UNDP calls, Grants.gov internacional
-• Fondos temáticos: Ashoka, Skoll Foundation, Echoing Green, Luminate, Omidyar Network, Draper Richards Kaplan
+ESTRATEGIA DE BÚSQUEDA — EXPLORACIÓN AMPLIA Y DIVERSA:
+NO TE LIMITES a las fuentes listadas. Busca agresivamente en TODA la web. Varía las queries en cada búsqueda para encontrar resultados NUEVOS y diferentes.
+
+LÓGICAS DE BÚSQUEDA (combina y varía — usa al menos 3 idiomas: español, inglés, portugués/francés):
+• EN ESPAÑOL: "convocatoria abierta" OR "llamado a propuestas" OR "invitación" + temáticas del usuario + 2026 2027
+• EN INGLÉS: "call for proposals" OR "request for applications" OR "funding opportunity" OR "grant" OR "fellowship" + temas + 2026 2027
+• EN FRANCÉS: "appel à projets" OR "appel à candidatures" + temas
+• EN PORTUGUÉS: "edital" OR "chamada" + temas
+
+FUENTES A EXPLORAR (más allá de las 143 listadas):
+• Embajadas en Colombia: Alemania, Francia, EE.UU., Reino Unido, Japón, Corea, Países Bajos, Canadá, Suecia, Suiza, Noruega, Dinamarca, Israel, Australia, España, Italia
+• Agencias de cooperación: DAAD, British Council, Institut Français, JICA, KOICA, Norad, SDC, AFD, SIDA, Global Affairs Canada, AusAid, AECID, Cooperation Belge, NWO, IDRC
+• Multilaterales: Banco Mundial, BID, CAF, BCIE, UE Horizonte Europa, OEA, SEGIB, CEPAL, PNUD, UNICEF, OIM, ACNUR, OIT, FAO, UNESCO, OMS/OPS
+• Fondos privados globales: Ford Foundation, Open Society, Rockefeller, MacArthur, Bloomberg, Gates Foundation, Wellcome Trust, Carnegie, Hewlett, Packard, Mellon, Kellogg, Tinker, AVINA, Luminate, Omidyar
+• Fondos de innovación: Ashoka, Skoll, Echoing Green, Draper Richards Kaplan, Schwab Foundation, Acumen, Grand Challenges
+• Repositorios de convocatorias: Devex.com, Candid/Foundation Center, FundsforNGOs, Grants.gov, Research Professional, EURAXESS, Funding & Tenders EU, PIVOT, GrantForward
+• Redes académicas: CLACSO, FLACSO, LASA, Redalyc, SciELO, COAR, AmeliCA, IESALC-UNESCO
+• Fondos regionales LAC: Fondo Pérez Guerrero, FONPLATA, Fondo Chile, Fondo México, Fondo Argentino, ProFuturo, Fundación Carolina, Becas OEA
+• Colombia: Minciencias, MinEducación, MinCultura, MinAmbiente, MinTIC, ICETEX, SENA, Colciencias, DNP, APC-Colombia, iNNpulsa, Regalías de CTeI
+• Fondos temáticos específicos:
+  - Paz/DDHH: ICTJ, Berghof Foundation, Swisspeace, USIP, National Endowment for Democracy, FIP, CINEP
+  - Ambiente/clima: GCF (Green Climate Fund), GEF, CIAT, Rainforest Alliance, WWF, TNC, WRI, Climate Works
+  - Digital/IA: Mozilla Foundation, Knight Foundation, Shuttleworth, Access Now, EFF, AI Now, Partnership on AI
+  - Género: UN Women, Global Fund for Women, Mama Cash, Equality Fund, Spotlight Initiative
+  - Salud: Wellcome Trust, NIH Fogarty, GAVI, Global Fund, PATH
+  - Educación: Lemann Foundation, Varkey Foundation, OECD Education, World Bank Education
+
+INSTRUCCIONES DE VARIACIÓN:
+- NO repitas las mismas queries de siempre. Cambia el ángulo de búsqueda.
+- Si ya buscaste "convocatoria paz Colombia", prueba "transitional justice funding latin america 2026" o "peacebuilding grants universities global south"
+- Busca por FINANCIADOR específico: "Ford Foundation call for proposals 2026", "GIZ Colombia proyectos"
+- Busca por TIPO de instrumento: "research grant", "capacity building", "policy fellowship", "action research"
+- Busca en PORTALES DE GRANTS: site:devex.com, site:fundsforngos.org, site:euraxess.ec.europa.eu
+- Combina temáticas del portafolio EESPI con keywords en inglés para alcance global
 
 PERFIL INSTITUCIONAL URosario:
 ${profileContext}
@@ -1135,57 +1179,55 @@ ECH:
 INSTRUCCIÓN SOBRE ALIADOS: Cuando encuentres una convocatoria, verifica si alguno de los aliados listados arriba ya tiene relación con esa fuente o temática — esto aumenta la probabilidad de éxito y debe mencionarse en el fit_urosario. Los aliados también son potenciales co-ejecutores o socios en propuestas conjuntas.`}
 
 
-${isGemini ? `CONTEXTO EESPI (resumen): 8 capacidades: investigación aplicada, consultoría, evaluación de impacto, formación, inteligencia de datos, prospectiva, participación/diálogo, innovación social. Sinónimos clave: paz=justicia transicional/DDR/reconciliación, democracia=gobernabilidad/participación, territorio=ordenamiento territorial/gobernanza, migración=desplazamiento/refugiados, género=equidad/interseccionalidad, DDHH=DIH/acceso a justicia, ambiente=cambio climático/biodiversidad, digital=IA/gobierno digital. ODS: 1,3,4,5,8,10,11,13,16,17. Usa estos sinónimos para ampliar búsquedas.` : `CONTEXTO INSTITUCIONAL EESPI — BASE DE CONOCIMIENTO (uso interno, NO incluir en mailings ni entregables):
+${isGemini ? `CONTEXTO EESPI: 2 grupos A1, 12 líneas, 8 observatorios, 51 expertos. TEMÁTICAS CLAVE: conflicto armado, construcción de paz, justicia transicional, seguridad ciudadana, crimen organizado, política exterior, geopolítica, cooperación internacional, democracia, participación ciudadana, gobernanza territorial, ordenamiento territorial, cambio climático, sostenibilidad, identidades, desigualdad, género, migración, interculturalidad, salud pública, salud mental, ciencia y tecnología, IA, comunicación digital, desinformación, educación, pedagogía, ética, DDHH, religión, humanidades ambientales, justicia ambiental. OBSERVATORIOS: DEMOS (electoral), ORAC (acción colectiva), Amazonia (socioambiental), Venezuela (migración/frontera), GobernLab (simulación/crisis), LabDTerritorios (innovación territorial), Género y Diversidades, Phronimos (ética). CAPACIDADES: investigación aplicada, consultoría, evaluación de impacto, formación, inteligencia de datos, prospectiva, diálogo social, innovación social. ODS: 1,3,4,5,8,10,11,13,16,17. Usa estos términos para ampliar búsquedas.` : `CONTEXTO INSTITUCIONAL EESPI — BASE DE CONOCIMIENTO COMPLETO (uso interno, NO incluir en mailings):
 
-La Escuela de Estudios Sociales, Políticos e Internacionales (EESPI) de la Universidad del Rosario integra las ciencias humanas, sociales, políticas e internacionales. Cuenta con 2 grupos A1 Minciencias (GEPI COL0025282 y Estudios sobre Identidad COL0003937), 12 áreas de especialización, 8 observatorios/laboratorios/centros, y 51 expertos disponibles.
+IDENTIDAD: Escuela de Estudios Sociales, Políticos e Internacionales (EESPI), Universidad del Rosario. 2 grupos A1 (GEPI COL0025282 + Estudios sobre Identidad COL0003937). 12 líneas de investigación, 8 observatorios/labs, 51 expertos, 370+ años.
 
-CAPACIDADES INSTITUCIONALES (8 capacidades — usa estos términos para enriquecer búsquedas):
-1. Investigación aplicada e innovación: diagnósticos, líneas de base, análisis prospectivo, estudios comparados, investigación colaborativa, enfoques mixtos cuanti-cualitativos, metodologías participativas
-2. Consultoría y asistencia técnica: asesoría en política pública, diseño de estrategias, fortalecimiento institucional, gestión del cambio
-3. Evaluación y aprendizaje: evaluación de impacto, monitoreo y seguimiento, rendición de cuentas, aprendizaje organizacional, toma de decisiones basada en evidencia
-4. Formación y fortalecimiento de capacidades: formación a la medida, talleres, laboratorios, mentorías, transferencia de metodologías, educación continua
-5. Inteligencia, datos y analítica: observatorios, sistemas de información, análisis de datos complejos, visualización, inteligencia territorial y social
-6. Prospectiva y análisis estratégico: análisis de riesgos geopolíticos, construcción de escenarios, vigilancia estratégica, planeación territorial
-7. Participación, diálogo y transformación social: facilitación de diálogos, mediación, negociación, construcción de paz, participación ciudadana, acción colectiva
-8. Innovación social y apropiación del conocimiento: co-creación, co-diseño, laboratorios de innovación, prototipado de soluciones, gestión del conocimiento, comunicación pública
+TEMÁTICAS POR LÍNEA DE INVESTIGACIÓN (120 temáticas únicas — usa para ampliar búsquedas):
 
-SECTORES DE APLICACIÓN: sector público, organismos internacionales, sector privado, medios de comunicación, sociedad civil, organizaciones sociales y fundaciones
+GEPI-FEIPU:
+• Seguridad, conflicto y paz: conflicto armado, construcción de paz, seguridad ciudadana y convivencia, crimen organizado y economías ilícitas, violencia política, gobernanza de la seguridad, prevención de violencias, justicia transicional y memoria, dinámicas territoriales del conflicto, implementación de acuerdos de paz, seguridad humana
+• Política exterior: política exterior colombiana y latinoamericana, geopolítica, gobernanza de fronteras y dinámicas transfronterizas, cooperación internacional, relaciones bilaterales y multilaterales, organizaciones internacionales, diplomacia pública, paradiplomacia, integración regional, toma de decisiones en política exterior
+• Democracia y sociedad: instituciones políticas y gobernanza democrática, políticas públicas y capacidad estatal, participación ciudadana y movilización social, gobernanza territorial multinivel, representación política y partidos, democracia comparada en América Latina, fortalecimiento institucional basado en evidencia
+• Gestión territorial y socioambiental: gobernanza ambiental y territorial, desarrollo territorial, ordenamiento territorial y planeación, conflictos socioambientales, sostenibilidad urbana y regional, cambio climático y transición socioecológica, gestión pública multinivel, políticas urbanas, movilidad y Smart Cities, analítica territorial SIG y Big Data, cultura ciudadana, descentralización
 
-TIPOS DE PROYECTOS QUE EJECUTA LA EESPI:
-- Diseño, implementación y evaluación de políticas públicas
-- Investigación aplicada y síntesis de evidencia
-- Evaluaciones de impacto y de programas
-- Análisis de contexto y cooperación técnica
-- Inteligencia estratégica y análisis de riesgos
-- Estudios sociales y territoriales
-- Sistematización de experiencias
-- Formación ejecutiva y fortalecimiento institucional
-- Diálogo social, comunicación estratégica e incidencia
+ECH:
+• Identidades y diferencias: identidades políticas/culturales/nacionales, desigualdades sociales y exclusión, estudios de género y diversidad, migraciones y movilidad humana, relaciones étnico-raciales e interculturalidad, subjetivación y cambio social, inclusión y cohesión social, memoria e identidades, estudios comparados en América Latina
+• Ciencia, tecnología y salud: estudios sociales de ciencia y tecnología, salud pública y sistemas de salud, salud mental, nutrición y alimentación, antropología médica, cuerpo y biopolítica, políticas científicas y tecnológicas, profesiones de la salud, evidencia científica, cuantificación y medición social
+• Estética y política: estética y política, memoria/violencia/cultura, subjetividad y acción política, lenguaje/discurso/representación, comunidades en transición, estudios culturales, territorialidades y geoestética, afectos y corporalidades, construcción de lo común, ciudadanía y convivencia
+• Ética y ciudadanía: ciudadanía y participación democrática, DDHH y justicia social, ética pública y responsabilidad social, agencia moral y política, inclusión/exclusión/desigualdad, educación ética, trabajo y transformaciones sociales, medios y democracia, filosofía práctica
+• Religión y sociedad: sociología e historia de las religiones, religión y política, secularización, pluralismo religioso, ciencia y religión, epistemología de la religión, transformaciones religiosas en América Latina, diálogo intercultural
+• Epistemologías y educación: epistemología y filosofía de la ciencia, historia de la ciencia, educación y pedagogía, diseño curricular e innovación educativa, tecnologías educativas, producción y apropiación del conocimiento, evaluación y calidad educativa, formación docente
+• Comunicación y TIC: comunicación digital, plataformización, IA y sociedad, gobernanza algorítmica, desinformación, esfera pública digital, datos y datificación, infraestructuras digitales, apropiación tecnológica, desigualdades digitales
+• Humanidades ambientales: relaciones sociedad-naturaleza, conflictos y justicia ambiental, crisis ecológica, imaginarios ambientales, estudios multiespecie, historia ambiental, cultura y sostenibilidad, ética ambiental, transición socioecológica
 
-METODOLOGÍA DE TRABAJO (6 fases): Diagnóstico → Diseño → Desarrollo → Evaluación → Fortalecimiento → Transferencia
+OBSERVATORIOS, LABORATORIOS Y CENTROS (8):
+• DEMOS UR: análisis electoral, comportamiento político, observación electoral, partidos, participación, geografía electoral, opinión pública, gobernanza electoral
+• ORAC: acción colectiva, movimientos sociales, protesta social, participación ciudadana, activismo, monitoreo de movilización social, sistemas de información social
+• Observatorio Amazonia: dinámicas socioambientales, deforestación, conflictos socioambientales, construcción de paz territorial, SIG y visores territoriales, justicia socioambiental, inteligencia territorial
+• Observatorio Venezuela: sistema político venezolano, relaciones Colombia-Venezuela, migración, gobernanza fronteriza, geopolítica regional, análisis de riesgo político, 17+ años de trayectoria
+• GobernLab: simulación y gestión de crisis, negociación, liderazgo estratégico, comunicación política, gamificación, Lego Serious Play, prospectiva, formación ejecutiva
+• LabDTerritorios: innovación territorial, ciencia abierta y ciudadana, co-creación, diagnósticos participativos, inteligencia territorial, gobernanza y datos, metodologías participativas
+• Observatorio Género y Diversidades: género e interseccionalidad, equidad e inclusión, políticas públicas de género, violencias basadas en género, género y paz, transversalización del enfoque de género, indicadores de equidad
+• Centro Phronimos (Ética y Ciudadanía): formación ética, integridad y transparencia, educación para la paz, responsabilidad social, cultura organizacional ética, corrupción y gobernanza, ciudadanía global
 
-CONCEPTOS CLAVE PARA ENRIQUECER BÚSQUEDAS (sinónimos y términos relacionados):
-- Paz: justicia transicional, DDR, reintegración, reconciliación, memoria, verdad, víctimas, posconflicto
-- Democracia: gobernabilidad, participación, elecciones, transparencia, rendición de cuentas, anticorrupción
-- Territorio: ordenamiento territorial, desarrollo local, gobernanza multinivel, descentralización, gestión ambiental
-- Migración: desplazamiento, refugiados, fronteras, integración, diáspora, movilidad humana
-- Género: equidad, feminismos, masculinidades, violencia basada en género, interseccionalidad
-- Derechos humanos: DDHH, DIH, libertad de expresión, acceso a justicia, defensores
-- Ambiente: cambio climático, biodiversidad, transición energética, economía circular, servicios ecosistémicos
-- Digital: IA, transformación digital, gobierno digital, datos abiertos, desinformación, ciudadanía digital
-- Educación: pedagogía, currículo, evaluación educativa, educación superior, competencias
-- Salud: salud pública, determinantes sociales, bioética, salud mental, epidemiología social
-- Cultura: patrimonio, memoria cultural, industrias creativas, diversidad cultural, artes
+SERVICIOS VERIFICADOS (89 servicios reales):
+Análisis de conflictividades, evaluación de políticas de seguridad, estudios de crimen organizado, diseño de estrategias de paz, diagnósticos de seguridad ciudadana, mediación y transformación de conflictos, fortalecimiento institucional, análisis geopolítico y prospectiva, estudios de gobernanza fronteriza, evaluación de internacionalización, análisis de riesgo político, asesoría en diplomacia, diseño/implementación/evaluación de políticas públicas, análisis de participación y cultura política, evaluaciones de mecanismos de participación, estudios territoriales, formulación de instrumentos de ordenamiento, análisis de conflictos socioambientales, SIG y analítica territorial, estudios de inclusión y diversidad, diagnósticos de desigualdad, investigación cualitativa y etnográfica, evaluación de políticas de ciencia y tecnología, estudios de salud pública, innovación social en salud, diseño de proyectos culturales, mediación cultural, análisis de narrativas y discursos, programas de formación ciudadana, evaluación de competencias éticas, estudios de diversidad religiosa, diseño de programas educativos, innovación curricular, tecnologías educativas, análisis de ecosistemas digitales, monitoreo de medios, estudios de IA y gobernanza digital, diagnósticos de justicia ambiental, participación socioambiental, educación ambiental, monitoreo electoral, estudios de opinión, simulaciones de crisis, formación en negociación, laboratorios ciudadanos, ciencia ciudadana
 
-ODS ASOCIADOS: ODS 1 (pobreza), ODS 3 (salud), ODS 4 (educación), ODS 5 (género), ODS 8 (trabajo), ODS 10 (desigualdades), ODS 11 (ciudades), ODS 13 (clima), ODS 16 (paz, justicia e instituciones), ODS 17 (alianzas)
+FINANCIADORES CON PROYECTOS EJECUTADOS (aliados verificados con experiencia):
+Minciencias, Banco Mundial, NED (National Endowment for Democracy), University of Leeds, Fundación Ideas para la Paz, Fedesarrollo, Gobierno de Turquía, Universidad Autónoma de Occidente
 
-INSTRUCCIÓN DE USO DEL CONTEXTO INSTITUCIONAL:
-Cuando construyas las queries de búsqueda, utiliza los términos, sinónimos y conceptos de esta base de conocimiento para ampliar semánticamente cada búsqueda. Por ejemplo:
-- Si el usuario busca "paz", amplía con: justicia transicional, DDR, reconciliación, víctimas, posconflicto, ODS 16
-- Si busca "territorio", amplía con: ordenamiento territorial, gobernanza multinivel, gestión ambiental, desarrollo local
-- Cuando evalúes el fit_urosario, referencia las CAPACIDADES específicas que aplican (ej: "evaluación de impacto", "investigación aplicada", "formación a la medida")
-- Cuando identifiques aliados, cruza con los SECTORES de aplicación y TIPOS DE PROYECTOS
-NO incluyas esta información en el JSON de salida, ni en mailings, ni en entregables al usuario. Es contexto interno para mejorar la búsqueda.
+CAPACIDADES (8): investigación aplicada, consultoría y asistencia técnica, evaluación de impacto, formación y fortalecimiento de capacidades, inteligencia y analítica de datos, prospectiva y análisis estratégico, participación y diálogo social, innovación social y apropiación del conocimiento
+
+METODOLOGÍA: Diagnóstico → Diseño → Desarrollo → Evaluación → Fortalecimiento → Transferencia
+
+ODS: 1 (pobreza), 3 (salud), 4 (educación), 5 (género), 8 (trabajo), 10 (desigualdades), 11 (ciudades), 13 (clima), 16 (paz e instituciones), 17 (alianzas)
+
+INSTRUCCIONES:
+- Usa las TEMÁTICAS de cada línea como sinónimos y términos de búsqueda ampliada
+- Cuando evalúes fit_urosario, referencia la LÍNEA específica + OBSERVATORIO/LAB si aplica + CAPACIDADES relevantes
+- Cuando identifiques aliados, cruza con FINANCIADORES verificados y SERVICIOS que la EESPI ya ofrece
+- NO incluyas este contexto en el JSON, mailings ni entregables. Es información interna.
 
 `}Tu trabajo:
 1. ${isGemini ? 'Buscar en Google convocatorias vigentes usando las lógicas anteriores' : 'Buscar con web_search en las fuentes listadas Y en toda la web con las lógicas anteriores'}
@@ -1271,8 +1313,13 @@ Devuelve SOLO el array JSON puro, sin markdown, sin texto antes ni después.` : 
 - Tipo de financiación: ${profile.tipo}
 - Palabras clave: ${profile.palabras||'según perfil institucional'}
 - Líneas/observatorios prioritarios: ${selectedLines.length>0?selectedLines.join(', '):'todas las disponibles según el perfil'}
-- Fuentes a priorizar (sin limitarse a ellas): ${sources.join(', ')}
-- Aliados estratégicos URosario a considerar como pistas de búsqueda: GIZ, PNUD, ACNUR, JEP, Wellcome Trust, DeJusticia, CINEP, WWF, Konrad Adenauer, FESCOL, CLACSO, UNESCO, OPS, IDEA Internacional, Amazon Conservation, Rachel Carson Center, Goethe-Institut, Reuters Institute, AI Now Institute
+
+⚡ INSTRUCCIÓN PRINCIPAL: Busca libremente en TODA la web. NO te limites a ninguna lista de fuentes. Usa múltiples queries en español, inglés y otros idiomas. Varía los ángulos de búsqueda.
+
+PISTAS DE BÚSQUEDA (opcionales — úsalas si te faltan ideas, no como límite):
+${sources.slice(0,20).join(', ')}${sources.length>20?` ... y ${sources.length-20} más`:''}
+
+RECUERDA: las mejores convocatorias pueden estar en fuentes que NO están en esa lista. Busca también en: Devex, FundsforNGOs, Foundation Directory, EURAXESS, sitios de embajadas, portales de fundaciones privadas, agencias de cooperación, repositorios de grants universitarios.
 ${sourcesWithUrls.length>0?`\nURLs específicas a rastrear:\n${sourcesWithUrls.map(s=>`  • ${s.name}: ${s.url}`).join('\n')}`:''}
 ${manualUrls.length>0 ? (extractedContent.length>0 ?
 `\nURLs del usuario CON CONTENIDO EXTRAÍDO — analiza el contenido real de cada página:
@@ -1288,25 +1335,64 @@ ${r.content}
 `\nURLs adicionales del usuario — analiza cada una y agrégala al resultado con el mismo formato y detalle que cualquier otra convocatoria:
 ${manualUrls.map((u,i)=>'  '+(i+1)+'. '+u).join('\n')}`) : ''}
 
-ELEGIBILIDAD REQUERIDA (AL MENOS UNA):
+CRITERIOS OBLIGATORIOS — SOLO incluye convocatorias que cumplan TODOS los siguientes:
+
+✅ CRITERIO 1 — ELEGIBILIDAD (AL MENOS UNA debe cumplirse):
 • Universidades colombianas pueden aplicar, O
-• Organizaciones sin ánimo de lucro pueden aplicar, O
-• Entidades colombianas en general pueden aplicar
+• Instituciones de educación superior pueden aplicar, O
+• Organizaciones sin ánimo de lucro (como la Universidad del Rosario) pueden aplicar, O
+• Entidades académicas o de investigación de países en desarrollo pueden aplicar
+❌ DESCARTA: convocatorias exclusivas para empresas con ánimo de lucro, solo para personas naturales, o que excluyan explícitamente a universidades o Colombia.
+
+✅ CRITERIO 2 — TIPO DE ACTIVIDAD (AL MENOS UNA):
+• Investigación aplicada, ciencia básica, I+D, investigación-acción
+• Consultoría, asistencia técnica, asesoría, fortalecimiento institucional
+• Educación continua, formación, capacitación, talleres, programas de formación
+• Evaluación, monitoreo, sistematización, transferencia de conocimiento
+• Publicaciones, divulgación científica, apropiación del conocimiento
+• Observatorios, sistemas de información, analítica de datos
+❌ DESCARTA: convocatorias exclusivamente para startups tech, construcción de infraestructura física, o actividades que no involucren conocimiento/investigación/formación.
+
+✅ CRITERIO 3 — TEMÁTICAS (AL MENOS UNA del portafolio EESPI):
+Paz y conflicto, democracia y gobernanza, territorio y desarrollo, migración, género y diversidad, DDHH, ambiente y sostenibilidad, digital e IA, educación, salud pública, cultura, seguridad ciudadana, ciencia y tecnología, comunicación, ética, innovación social, relaciones internacionales, economía política.
+
+✅ CRITERIO 4 — VIGENCIA OBLIGATORIA:
+• La convocatoria debe tener fecha de cierre POSTERIOR a ${todayISO}, O
+• Ser de ventanilla permanente (siempre abierta)
+❌ DESCARTA sin excepción: cualquier convocatoria con fecha de cierre anterior a ${todayISO}, aunque parezca relevante temáticamente.
+
+✅ CRITERIO 5 — APLICA DESDE COLOMBIA:
+• La institución puede aplicar desde Colombia (no requiere residencia en otro país)
+• Si el financiador es de otro país, verifica que acepte aplicaciones internacionales
+❌ DESCARTA: convocatorias restringidas a ciudadanos o instituciones de un solo país que no incluya Colombia.
 
 ${isGemini ? `PROCESO:
-1. Busca en Google convocatorias vigentes usando las palabras clave y fuentes indicadas
-2. Verifica elegibilidad y fechas de cada candidata
-3. Descarta vencidas o que excluyan a universidades/ONGs/entidades colombianas
-4. Entrega un array JSON puro con las convocatorias verificadas, sin markdown, sin texto antes ni después
-5. IMPORTANTE: NO digas que no puedes buscar. Usa tu Google Search integrado.` : `PROCESO (MÁXIMO ${cfg.max} BÚSQUEDAS WEB EN TOTAL):
-1. Haz ${cfg.discovery} búsquedas de descubrimiento combinando las palabras clave con las lógicas abiertas
-2. Para las mejores candidatas: verifica elegibilidad y fecha con ${cfg.verify} búsquedas adicionales
-3. Descarta vencidas o que excluyan a universidades/ONGs/entidades colombianas
-4. AL LLEGAR A 10 BÚSQUEDAS: DETENTE y entrega el array JSON inmediatamente con lo que tengas verificado
+1. Busca en Google usando MÚLTIPLES ÁNGULOS y VARIANDO los queries:
+   - En español: "convocatoria abierta" + tema + 2026
+   - En inglés: "call for proposals" OR "grant" + tema + "latin america" + 2026
+   - Por financiador: "Ford Foundation" OR "GIZ" OR "USAID" + tema + 2026
+   - En portales: devex.com, fundsforngos.org + tema
+   - Global south: tema + "funding" + "universities" + "developing countries" 2026
+2. Verifica elegibilidad y fechas
+3. Descarta vencidas o que excluyan universidades/ONGs colombianas
+4. Entrega array JSON puro. Sin texto adicional. Sin [cite]. Sin duplicar.
+5. IMPORTANTE: NO digas que no puedes buscar. Usa tu Google Search integrado.
+6. DIVERSIFICA: busca en múltiples temáticas del portafolio EESPI (paz, democracia, ambiente, digital, salud, género, migraciones, cultura, educación)` : `PROCESO (MÁXIMO ${cfg.max} BÚSQUEDAS WEB EN TOTAL — VARÍA LOS ÁNGULOS):
+1. Búsquedas de DESCUBRIMIENTO (${cfg.discovery} búsquedas) — usa ÁNGULOS DIFERENTES, no repitas el mismo query:
+   - Query en ESPAÑOL: "convocatoria" + tema + 2026 + elegibilidad
+   - Query en INGLÉS: "call for proposals" OR "grant" + tema + "latin america" OR "Colombia" + 2026
+   - Query por FINANCIADOR: "[nombre fundación/agencia]" + "call" + 2026
+   - Query en PORTAL: site:devex.com OR site:fundsforngos.org + tema
+   - Query AMPLIO: "[tema]" + "funding" + "universities" + "developing countries" + 2026
+   - Query REGIONAL: "[tema]" + "América Latina" OR "Global South" + "convocatoria abierta" + 2026
+2. Búsquedas de VERIFICACIÓN (${cfg.verify} búsquedas): confirma fecha de cierre y elegibilidad de los mejores candidatos
+3. Descarta vencidas o que excluyan explícitamente a universidades/ONGs colombianas
+4. AL AGOTAR EL PRESUPUESTO: entrega el JSON inmediatamente con lo verificado
 5. El JSON debe ser puro, sin markdown, sin texto antes ni después`}
 
-Prefiero 3-4 convocatorias verificadas entregadas RÁPIDO que 8 perfectas que nunca llegan.
-${excludeTitles.length>0?`\n⚠ CONVOCATORIAS YA ENCONTRADAS — NO LAS REPITAS:\n${excludeTitles.map((t,i)=>(i+1)+'. '+t).join('\n')}\nBusca convocatorias DIFERENTES a las anteriores. Usa OTRAS fuentes y OTROS términos de búsqueda.`:''}`;
+DIVERSIFICA: si ya encontraste convocatorias de paz y democracia, busca en temáticas del portafolio que aún no hayas explorado: ambiente, digital, salud, género, migraciones, cultura, educación, ciencia y tecnología.
+Prefiero 8 convocatorias DIVERSAS de múltiples fuentes que 8 del mismo donante.
+${excludeTitles.length>0?`\n⚠ CONVOCATORIAS YA ENCONTRADAS — NO LAS REPITAS:\n${excludeTitles.map((t,i)=>(i+1)+'. '+t).join('\n')}\nBusca en OTRAS fuentes, OTROS idiomas y OTROS financiadores.`:''}`;
 
   const messages = [{role:'user', content:userPrompt}];
   let finalText = '';
@@ -2053,7 +2139,45 @@ async function loadFromSheets() {
   }
 }
 
-// ══ DESCARGAR EXCEL ══
+// ══ DESCARGAR EXCEL POR BÚSQUEDA ══
+function downloadSearchExcel(i) {
+  const hist = loadHistory();
+  const h = hist[i];
+  if(!h || !h.resultados || h.resultados.length === 0) {
+    alert('No hay resultados para exportar.');
+    return;
+  }
+
+  const headers = ['Título', 'Fuente', 'Monto', 'Cierre', 'Estado', 'Score', 'URL', 'Descripción', 'Palabras clave', 'Fit URosario', 'Aspectos importantes', 'Elegibilidad'];
+  
+  const data = h.resultados.map(o => [
+    o.title || '',
+    o.source || '',
+    o.amount || '',
+    o.deadline || '',
+    o.status || '',
+    o.score || '',
+    o.url || '',
+    o.desc || o.description || '',
+    Array.isArray(o.kws || o.keywords) ? (o.kws || o.keywords).join(', ') : '',
+    o.fit || o.fit_urosario || '',
+    Array.isArray(o.aspectos) ? o.aspectos.join(' | ') : '',
+    o.elig || o.eligibility || ''
+  ]);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  ws['!cols'] = [
+    {wch:45}, {wch:25}, {wch:18}, {wch:14}, {wch:12}, {wch:6},
+    {wch:50}, {wch:60}, {wch:30}, {wch:60}, {wch:60}, {wch:40}
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, 'Convocatorias');
+
+  const fecha = h.fecha ? h.fecha.split(',')[0].trim().replace(/\//g, '-') : new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `PANDA_${fecha}_${h.resultados.length}resultados.xlsx`);
+}
+
+// ══ DESCARGAR EXCEL COMPLETO ══
 async function downloadExcel() {
   const btn = event.target;
   const origText = btn.textContent;
@@ -2166,6 +2290,7 @@ function renderHistory() {
         </div>
         <div class="hist-actions">
           <button class="hist-btn" onclick="restoreSearch(${i})">Ver resultados</button>
+          <button class="hist-btn" onclick="downloadSearchExcel(${i})" style="font-size:9px;">📥 Excel</button>
           <button class="hist-btn del" onclick="deleteHistItem(${i})">✕</button>
         </div>
       </div>`).join('');
@@ -2175,10 +2300,7 @@ function renderHistory() {
   html += `<div id="sharedHistSection" style="margin-top:16px;border-top:2px solid var(--yellow);padding-top:12px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:var(--black);">📋 Historial compartido del equipo</span>
-      <div style="display:flex;gap:6px;">
-        <button class="hist-btn" onclick="downloadExcel()" style="font-size:9px;background:var(--black);color:var(--yellow);border-color:var(--black);">📥 Descargar Excel</button>
-        <button class="hist-btn" onclick="loadSharedHistory()" style="font-size:9px;">🔄 Actualizar</button>
-      </div>
+      <button class="hist-btn" onclick="loadSharedHistory()" style="font-size:9px;">🔄 Actualizar</button>
     </div>
     <div id="sharedHistList"><div class="hist-empty">Clic en 🔄 Actualizar para cargar el historial del equipo.</div></div>
   </div>`;
