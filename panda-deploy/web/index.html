@@ -289,6 +289,7 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
 .panda-done-text{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;color:var(--black)}
 .panda-done-sub{font-size:12px;color:var(--gray-mid);font-weight:400;letter-spacing:0;text-transform:none;margin-top:2px}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -1224,12 +1225,17 @@ CAMPOS OBLIGATORIOS (SÉ CONCISO para que quepan 15+ convocatorias):
 EJEMPLO:
 {"title":"Grant Investigación Social 2026","source":"Ford Foundation","type":"Investigación","amount":"USD 50.000","deadline":"30/12/2026","status":"ABIERTA","days_left":180,"description":"Financiamiento para proyectos de DDHH y paz en América Latina.","eligibility":"Universidades y ONGs de países en desarrollo","fit_urosario":"ECH Línea 4 Ética y ciudadanía, Carlos Patarroyo, aliado DeJusticia","aspectos_importantes":["1. Hasta USD 50.000 por proyecto","2. Universidades colombianas elegibles","3. DDHH, paz, justicia social","4. Alianzas internacionales permitidas","5. Cierre diciembre 2026"],"url":"https://ejemplo.org/grants","score":85,"keywords":["DDHH","paz","justicia social"]}
 
-REGLAS ESTRICTAS:
-- Genera UNA SOLA copia del array JSON, NUNCA lo repitas
-- NO incluyas anotaciones [cite] ni [cite: N] dentro del JSON
-- NO uses markdown (**negritas**) dentro del JSON
-- SÉ CONCISO: prefiero 15 convocatorias cortas que 5 largas
-- Solo el array JSON puro, sin texto antes ni después` : `📡 PROTOCOLO DE ENTREGA PROGRESIVA — OBLIGATORIO:
+REGLAS ESTRICTAS DE FORMATO:
+- Genera cada convocatoria como un objeto JSON en UNA SOLA LÍNEA
+- Cada línea empieza con CONV:: seguido del JSON del objeto
+- Ejemplo de formato:
+CONV::{"title":"Grant Ejemplo","source":"Ford Foundation","type":"Investigación","amount":"USD 50.000","deadline":"30/12/2026","status":"ABIERTA","days_left":180,"description":"Financiamiento para proyectos de DDHH.","eligibility":"Universidades y ONGs","fit_urosario":"ECH Línea 4, Carlos Patarroyo","aspectos_importantes":["Hasta USD 50.000","Universidades elegibles","DDHH y paz","Alianzas permitidas","Cierre dic 2026"],"url":"https://ejemplo.org/grants","score":85,"keywords":["DDHH","paz"]}
+CONV::{"title":"Otra Convocatoria","source":"GIZ",...}
+- NO generes un array JSON (no uses [ ] alrededor)
+- NO dupliques la respuesta
+- NO incluyas [cite] ni **negritas**
+- NO pongas texto antes ni después de las líneas CONV::
+- SÉ CONCISO: prefiero 15 convocatorias cortas que 5 largas` : `📡 PROTOCOLO DE ENTREGA PROGRESIVA — OBLIGATORIO:
 Cada vez que VERIFIQUES una convocatoria (vigente + elegible), emite INMEDIATAMENTE una línea con este formato exacto, antes de seguir buscando:
 OPP::{"title":"...","source":"...","type":"...","amount":"...","deadline":"DD/MM/AAAA o PERMANENTE","status":"ABIERTA|PERMANENTE|PRÓXIMA","days_left":número_o_null,"description":"2-3 frases","eligibility":"a quiénes permite aplicar","fit_urosario":"grupo/línea/investigador y por qué","aspectos_importantes":["punto 1","punto 2","punto 3","punto 4","punto 5"],"url":"URL oficial","score":1-100,"keywords":["max 5"]}
 (una sola línea por convocatoria, JSON válido, sin saltos de línea internos)
@@ -1553,7 +1559,7 @@ huntBtn.addEventListener('click', async () => {
         result = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent, []);
         break;
       } catch(e) {
-        const isRetryable = e.message.includes('503') || e.message.includes('high demand') || e.message.includes('UNAVAILABLE') || e.message.includes('TIMEOUT');
+        const isRetryable = (e.message.includes('503') || e.message.includes('high demand') || e.message.includes('UNAVAILABLE') || e.message.includes('TIMEOUT')) && !e.message.includes('429') && !e.message.includes('quota');
         if(isRetryable && attempt < MAX_RETRIES) {
           const wait = attempt * 15;
           addTraceLine('RETRY', `Error temporal (${e.message.substring(0,60)}…). Reintentando en ${wait}s (intento ${attempt+1}/${MAX_RETRIES})…`, 0, true);
@@ -1579,80 +1585,59 @@ huntBtn.addEventListener('click', async () => {
       stripped = stripped.replace(/\[cite:\s*[\d,\s]+\]/g, '');
       stripped = stripped.replace(/\*\*/g, '');
 
-      // Gemini a veces duplica la respuesta — tomar solo la PRIMERA copia
-      // Detectar si hay dos arrays JSON (segundo empieza con otro [{)
-      const firstArr = stripped.indexOf('[');
-      if(firstArr !== -1) {
-        const afterFirst = stripped.indexOf('[\n{', firstArr + 10);
-        if(afterFirst !== -1) {
-          // Hay duplicación — usar solo la primera parte
-          stripped = stripped.substring(0, afterFirst);
+      // ── MÉTODO 1: Líneas CONV:: (formato Gemini optimizado) ──
+      const convLines = stripped.match(/CONV::\s*\{[^\n]+/g) || [];
+      if(convLines.length > 0) {
+        const convParsed = [];
+        for(const line of convLines) {
+          try {
+            const obj = JSON.parse(line.replace(/^CONV::\s*/, '').trim());
+            if(obj.title || obj.titulo) convParsed.push(obj);
+          } catch(_) {}
+        }
+        if(convParsed.length > 0) {
+          opportunities = convParsed;
+          addTraceLine('FOUND', `${convParsed.length} convocatoria(s) parseadas (formato CONV::)`, 0);
         }
       }
 
-      let parsed = null;
-
-      // Intentar parsear un array completo
-      const arrStart = stripped.indexOf('[');
-      if(arrStart !== -1) {
-        // Buscar cierre natural del array
-        let depth = 0, i = arrStart;
-        for(; i < stripped.length; i++) {
-          if(stripped[i]==='[') depth++;
-          else if(stripped[i]===']') { depth--; if(depth===0) break; }
-        }
-        if(depth === 0 && i < stripped.length) {
-          // Array completo encontrado
-          try {
-            parsed = JSON.parse(stripped.substring(arrStart, i+1));
-          } catch(_) {}
-        }
-
-        // Si no hay array completo, reparar truncación
-        if(!parsed) {
-          let truncated = stripped.substring(arrStart);
-          // Encontrar el último objeto completo (termina en })
-          const lastCloseBrace = truncated.lastIndexOf('}');
-          if(lastCloseBrace > 0) {
-            // Cortar después del último } y cerrar el array
-            let repaired = truncated.substring(0, lastCloseBrace + 1);
-            // Limpiar coma trailing si existe
-            repaired = repaired.replace(/,\s*$/, '');
-            repaired = repaired + ']';
-            try {
-              const arr = JSON.parse(repaired);
-              if(Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'object') {
-                // Filtrar objetos incompletos (sin title)
-                parsed = arr.filter(o => o.title || o.titulo);
-                addTraceLine('WARN', `JSON truncado — se recuperaron ${parsed.length} convocatoria(s).`, 0, true);
-              }
-            } catch(_) {
-              // Intentar extraer objetos individuales con regex
-              const objMatches = truncated.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g) || [];
-              const recovered = [];
-              for(const m of objMatches) {
-                try {
-                  const obj = JSON.parse(m);
-                  if(obj.title || obj.titulo) recovered.push(obj);
-                } catch(_) {}
-              }
-              if(recovered.length > 0) {
-                parsed = recovered;
-                addTraceLine('WARN', `JSON roto — se rescataron ${recovered.length} convocatoria(s).`, 0, true);
-              }
+      // ── MÉTODO 2: Array JSON estándar (formato Claude/fallback) ──
+      if(opportunities.length === 0) {
+        let parsed = null;
+        const arrStart = stripped.indexOf('[');
+        if(arrStart !== -1) {
+          // Buscar cierre natural del array
+          let depth = 0, i = arrStart;
+          for(; i < stripped.length; i++) {
+            if(stripped[i]==='[') depth++;
+            else if(stripped[i]===']') { depth--; if(depth===0) break; }
+          }
+          if(depth === 0 && i < stripped.length) {
+            try { parsed = JSON.parse(stripped.substring(arrStart, i+1)); } catch(_) {}
+          }
+          // Si no hay array completo, reparar truncación
+          if(!parsed) {
+            let truncated = stripped.substring(arrStart);
+            const lastCloseBrace = truncated.lastIndexOf('}');
+            if(lastCloseBrace > 0) {
+              let repaired = truncated.substring(0, lastCloseBrace + 1).replace(/,\s*$/, '') + ']';
+              try {
+                const arr = JSON.parse(repaired);
+                if(Array.isArray(arr) && arr.length > 0) {
+                  parsed = arr.filter(o => o.title || o.titulo);
+                  if(parsed.length > 0) addTraceLine('WARN', `JSON truncado — se recuperaron ${parsed.length} convocatoria(s).`, 0, true);
+                }
+              } catch(_) {}
             }
           }
         }
-      }
-
-      if(!parsed || parsed.length === 0) {
-        if(typeof liveResults !== 'undefined' && liveResults.length > 0) {
+        if(parsed && parsed.length > 0) {
+          opportunities = parsed;
+        } else if(typeof liveResults !== 'undefined' && liveResults.length > 0) {
           opportunities = liveResults;
         } else {
-          throw new Error('No se encontró array JSON de convocatorias válido.');
+          throw new Error('No se encontró JSON de convocatorias válido.');
         }
-      } else {
-        opportunities = parsed;
       }
       console.log('PANDA · Parsed OK, primer objeto:', JSON.stringify(opportunities[0]).substring(0,300));
     } catch(parseErr) {
@@ -2068,6 +2053,68 @@ async function loadFromSheets() {
   }
 }
 
+// ══ DESCARGAR EXCEL ══
+async function downloadExcel() {
+  const btn = event.target;
+  const origText = btn.textContent;
+  btn.textContent = '⏳ Descargando…';
+  btn.disabled = true;
+
+  try {
+    const rows = await loadFromSheets();
+    if(!rows || rows.length === 0) {
+      alert('No hay datos para exportar. Lanza una búsqueda primero.');
+      return;
+    }
+
+    // Definir columnas del Excel
+    const headers = ['Sesión', 'Fecha', 'Usuario', 'Modelo', 'Título', 'Fuente', 'Monto', 'Cierre', 'Estado', 'Score', 'URL', 'Descripción', 'Palabras clave', 'Fit URosario', 'Aspectos importantes', 'Elegibilidad'];
+    
+    const data = rows.map(r => [
+      r.Sesion || r.sesion || '',
+      r.Fecha || r.fecha || '',
+      r.Usuario || r.usuario || '',
+      r.Modelo || r.modelo || '',
+      r['Título'] || r.title || r.Titulo || '',
+      r.Fuente || r.source || '',
+      r.Monto || r.amount || '',
+      r.Cierre || r.deadline || '',
+      r.Estado || r.status || '',
+      r.Score || r.score || '',
+      r.URL || r.url || '',
+      r['Descripción'] || r.description || r.Descripcion || '',
+      r['Palabras clave'] || r.keywords || r.Keywords || '',
+      r['Fit URosario'] || r.fit_urosario || r.Fit || '',
+      r.Aspectos || r.aspectos || '',
+      r.Elegibilidad || r.eligibility || r.Eligibility || ''
+    ]);
+
+    // Crear workbook con SheetJS
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+
+    // Ancho de columnas
+    ws['!cols'] = [
+      {wch:14}, {wch:18}, {wch:28}, {wch:12}, {wch:45}, {wch:25},
+      {wch:18}, {wch:14}, {wch:12}, {wch:6}, {wch:50}, {wch:60},
+      {wch:30}, {wch:60}, {wch:60}, {wch:40}
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Convocatorias');
+
+    // Descargar
+    const fecha = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `PANDA_Convocatorias_${fecha}.xlsx`);
+
+    addTraceLine('REPORT', `📥 Excel exportado: ${data.length} convocatorias`, 0);
+  } catch(e) {
+    alert('Error al exportar: ' + e.message);
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
 // ══════════ HISTORIAL (localStorage + Google Sheets) ══════════
 const HIST_KEY = 'panda_search_history';
 
@@ -2128,7 +2175,10 @@ function renderHistory() {
   html += `<div id="sharedHistSection" style="margin-top:16px;border-top:2px solid var(--yellow);padding-top:12px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:var(--black);">📋 Historial compartido del equipo</span>
-      <button class="hist-btn" onclick="loadSharedHistory()" style="font-size:9px;">🔄 Actualizar</button>
+      <div style="display:flex;gap:6px;">
+        <button class="hist-btn" onclick="downloadExcel()" style="font-size:9px;background:var(--black);color:var(--yellow);border-color:var(--black);">📥 Descargar Excel</button>
+        <button class="hist-btn" onclick="loadSharedHistory()" style="font-size:9px;">🔄 Actualizar</button>
+      </div>
     </div>
     <div id="sharedHistList"><div class="hist-empty">Clic en 🔄 Actualizar para cargar el historial del equipo.</div></div>
   </div>`;
