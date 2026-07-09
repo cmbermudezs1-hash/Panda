@@ -506,6 +506,15 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
       </select>
     </div>
     <div class="field">
+      <label>Horizonte de búsqueda</label>
+      <select id="horizonte">
+        <option value="vigentes">📅 Solo vigentes hoy</option>
+        <option value="proximas90" selected>📆 Vigentes + próximas 90 días</option>
+        <option value="proximas180">🗓 Vigentes + próximas 6 meses</option>
+        <option value="todas">🌐 Todo el año (máxima cobertura)</option>
+      </select>
+    </div>
+    <div class="field">
       <label>Modelo IA <span style="font-weight:400;opacity:0.6">(cerebro del Panda)</span></label>
       <select id="modelo">
         <option value="gemini-2.5-flash" selected>🆓 Gemini 2.5 Flash — gratis · Google Search</option>
@@ -1060,30 +1069,51 @@ function renderOpportunities(opportunities) {
 }
 
 // ── CALL AGENT ──
-async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], manualUrls=[], modelId='claude-sonnet-4-6', intensity='normal', urlsOnlyMode=false, extractedContent=[], excludeTitles=[]) {
+async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], manualUrls=[], modelId='claude-sonnet-4-6', intensity='normal', urlsOnlyMode=false, extractedContent=[], excludeTitles=[], horizonte='proximas90') {
   const profileContext = buildProfileContext(profile.unit);
   const today = new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
   const todayISO = new Date().toISOString().split('T')[0];
 
   // Configuración de intensidad
+  const isGeminiModel = modelId.startsWith('gemini');
   const intensityConfig = {
-    rapida:   { max: 4,  discovery: '3',   verify: '1',   tokens: 4000 },
-    normal:   { max: 8,  discovery: '5-6', verify: '2-3', tokens: 8000 },
-    profunda: { max: 15, discovery: '10-11', verify: '4-5', tokens: 12000 }
+    rapida:   { max: 6,  discovery: '5',   verify: '1',   tokens: 8000,  target: 8 },
+    normal:   { max: 12, discovery: '9-10', verify: '2',  tokens: 16000, target: 12 },
+    profunda: { max: 20, discovery: '16-17', verify: '3', tokens: 24000, target: 18 }
   };
-  const cfg = intensityConfig[intensity] || intensityConfig.normal;
+  // Gemini: un solo request grande — maximizar cobertura temática por request
+  const geminiConfig = {
+    rapida:   { max: 1, discovery: '1', verify: '0', tokens: 65536, target: 10 },
+    normal:   { max: 1, discovery: '1', verify: '0', tokens: 65536, target: 18 },
+    profunda: { max: 1, discovery: '1', verify: '0', tokens: 65536, target: 25 }
+  };
+  const cfg = isGeminiModel ? (geminiConfig[intensity] || geminiConfig.normal) : (intensityConfig[intensity] || intensityConfig.normal);
   const isGemini = modelId.startsWith('gemini');
 
-  const systemPrompt = `Eres "PANDA" (Radar de Oportunidades Estratégicas), un agente IA especializado en encontrar convocatorias de financiación VIGENTES para la Universidad del Rosario en Colombia.
+  // Calcular fecha límite según horizonte
+  const horizonDays = horizonte === 'vigentes' ? 0 : horizonte === 'proximas90' ? 90 : horizonte === 'proximas180' ? 180 : 365;
+  const horizonDate = new Date();
+  horizonDate.setDate(horizonDate.getDate() + horizonDays);
+  const horizonISO = horizonDate.toISOString().split('T')[0];
+  const horizonLabel = horizonte === 'vigentes' ? 'Solo convocatorias ABIERTAS hoy' :
+    horizonte === 'proximas90' ? 'Convocatorias abiertas HOY + que abren en los próximos 90 días' :
+    horizonte === 'proximas180' ? 'Convocatorias abiertas HOY + que abren en los próximos 6 meses' :
+    'Máxima cobertura: abiertas, próximas a abrir y ventanilla permanente de todo el año';
+
+  const systemPrompt = `Eres "PANDA" (Radar de Oportunidades Estratégicas), un agente IA especializado en encontrar convocatorias de financiación para la Universidad del Rosario en Colombia.
 
 FECHA ACTUAL: ${today} (ISO: ${todayISO})
 
-⚠️ REGLA CRÍTICA DE VIGENCIA — NO NEGOCIABLE:
-SOLO incluye convocatorias que cumplan AL MENOS UNA de estas condiciones:
-1. ABIERTAS / VIGENTES: fecha límite POSTERIOR a ${todayISO}
-2. PERMANENTES / VENTANILLA ABIERTA: reciben propuestas todo el año
-3. PRÓXIMAS A ABRIR: apertura confirmada en los próximos 90 días
-NUNCA incluyas convocatorias vencidas, cerradas o sin fecha verificable.
+⚠️ REGLA DE VIGENCIA — HORIZONTE SELECCIONADO: ${horizonLabel}
+${horizonte === 'vigentes' ?
+`SOLO incluye convocatorias con fecha de cierre POSTERIOR a ${todayISO} o de ventanilla permanente.
+NUNCA incluyas convocatorias vencidas o próximas a abrir.` :
+`INCLUYE convocatorias en cualquiera de estos estados:
+1. ABIERTAS: fecha límite posterior a ${todayISO}
+2. PERMANENTES: ventanilla abierta todo el año
+3. PRÓXIMAS A ABRIR: fecha de apertura confirmada antes del ${horizonISO}
+Para las PRÓXIMAS, indica claramente en el JSON: status:"PRÓXIMA", deadline: fecha de apertura estimada, y en la descripción menciona cuándo abre.
+NUNCA incluyas convocatorias cuya apertura sea posterior al ${horizonISO}.`}
 
 ⚠️ REGLA CRÍTICA DE ELEGIBILIDAD — 5 CRITERIOS OBLIGATORIOS:
 
@@ -1111,8 +1141,11 @@ NUNCA incluyas convocatorias vencidas, cerradas o sin fecha verificable.
 5. APLICA DESDE COLOMBIA: la institución puede aplicar desde Colombia sin restricción de residencia
 
 ${urlsOnlyMode ? `⏱ MODO SOLO ANÁLISIS:
-NO realices búsquedas web adicionales. Solo analiza las URLs que el usuario te proporciona. Para cada URL genera la ficha completa: título, fuente, monto, fecha, descripción, aspectos importantes, elegibilidad, fit_urosario, score y keywords.` : isGemini ? `⏱ INSTRUCCIÓN DE BÚSQUEDA:
-Usa tu capacidad de búsqueda en Google para encontrar convocatorias vigentes. Busca activamente en la web información actual sobre grants, convocatorias y oportunidades de financiación. No digas que no puedes buscar — TU TIENES búsqueda web integrada. Úsala.` : `⏱ PRESUPUESTO DE BÚSQUEDA — ESTRICTO:
+NO realices búsquedas web adicionales. Solo analiza las URLs que el usuario te proporciona. Para cada URL genera la ficha completa: título, fuente, monto, fecha, descripción, aspectos importantes, elegibilidad, fit_urosario, score y keywords.` : isGemini ? `⏱ INSTRUCCIÓN DE BÚSQUEDA — COSECHA MASIVA (meta: ${cfg.target}+ convocatorias):
+Usa tu Google Search integrado para encontrar la MAYOR CANTIDAD posible de convocatorias diversas.
+COSECHA SISTEMÁTICA — busca en CADA una de estas 12 temáticas y trae opciones de TODAS:
+1. Paz, conflicto y justicia transicional  2. Democracia y gobernanza  3. Territorio y ambiente  4. Migración  5. Género y diversidad  6. Derechos humanos  7. Digital, IA y comunicación  8. Educación  9. Salud pública  10. Cultura y memoria  11. Relaciones internacionales y cooperación  12. Ciencia, tecnología e innovación social
+Trae AL MENOS 1-2 convocatorias por temática que tengan opciones vigentes o próximas. La meta es DIVERSIDAD y CANTIDAD — no te limites a una temática. No digas que no puedes buscar — TÚ TIENES búsqueda web integrada.` : `⏱ PRESUPUESTO DE BÚSQUEDA — ESTRICTO:
 Tienes un MÁXIMO de ${cfg.max} búsquedas web en total. Úsalas estratégicamente:
 - ${cfg.discovery} búsquedas para descubrir convocatorias candidatas
 - ${cfg.verify} búsquedas para verificar fechas de las mejores candidatas
@@ -1356,10 +1389,12 @@ CRITERIOS OBLIGATORIOS — SOLO incluye convocatorias que cumplan TODOS los sigu
 ✅ CRITERIO 3 — TEMÁTICAS (AL MENOS UNA del portafolio EESPI):
 Paz y conflicto, democracia y gobernanza, territorio y desarrollo, migración, género y diversidad, DDHH, ambiente y sostenibilidad, digital e IA, educación, salud pública, cultura, seguridad ciudadana, ciencia y tecnología, comunicación, ética, innovación social, relaciones internacionales, economía política.
 
-✅ CRITERIO 4 — VIGENCIA OBLIGATORIA:
-• La convocatoria debe tener fecha de cierre POSTERIOR a ${todayISO}, O
-• Ser de ventanilla permanente (siempre abierta)
-❌ DESCARTA sin excepción: cualquier convocatoria con fecha de cierre anterior a ${todayISO}, aunque parezca relevante temáticamente.
+✅ CRITERIO 4 — HORIZONTE DE BÚSQUEDA: ${horizonLabel}
+${horizonte === 'vigentes' ?
+'• Solo convocatorias con fecha de cierre posterior a hoy o ventanilla permanente.' :
+`• Incluir convocatorias ABIERTAS hoy, PERMANENTES, y PRÓXIMAS A ABRIR antes del ${horizonISO}.
+• Para las próximas, busca convocatorias que ANUNCIAN su apertura — "opens in", "abrirá en", "próxima convocatoria" — aunque aún no estén abiertas.
+• Marca las próximas con status:"PRÓXIMA" y explica en la descripción cuándo abre.`}
 
 ✅ CRITERIO 5 — APLICA DESDE COLOMBIA:
 • La institución puede aplicar desde Colombia (no requiere residencia en otro país)
@@ -1594,8 +1629,10 @@ huntBtn.addEventListener('click', async () => {
   // Leer modelo e intensidad
   const modelId = document.getElementById('modelo').value;
   const intensity = document.getElementById('intensidad').value;
+  const horizonte = document.getElementById('horizonte').value;
   const modelLabel = document.getElementById('modelo').selectedOptions[0].textContent.split('—')[0].trim();
   const intensityLabel = document.getElementById('intensidad').selectedOptions[0].textContent.split('—')[0].trim();
+  const horizonteLabel = document.getElementById('horizonte').selectedOptions[0].textContent.trim();
   const urlsOnlyMode = document.getElementById('urlsOnlyMode')?.checked && manualUrls.length > 0;
 
   // Validaciones
@@ -1612,7 +1649,7 @@ huntBtn.addEventListener('click', async () => {
   clearTrace();
   hideSpinner();
   hideDone();
-  showSpinner('El Panda salió de cacería…', 'Buscando convocatorias vigentes en las fuentes activas');
+  showSpinner('El Panda salió de cacería…', `Buscando convocatorias — ${horizonteLabel}`);
 
   const unitLabel = selectedUnit==='ambas'?'ECH + FEIPU':selectedUnit.toUpperCase();
   if(urlsOnlyMode) {
@@ -1623,7 +1660,7 @@ huntBtn.addEventListener('click', async () => {
     addTraceLine('OBSERVE', `Unidad: ${unitLabel} · ${selectedLines.length>0?selectedLines.length+' líneas priorizadas':'todas las líneas'}`, 0);
     addTraceLine('CONTEXT', 'Perfil institucional cargado: grupos, observatorios y aliados', 200);
     addTraceLine('PLAN', `${sources.length} fuentes activas${manualUrls.length>0?` + ${manualUrls.length} URL(s) del usuario`:''}`, 400);
-    addTraceLine('CALL', `${modelLabel} · ${intensityLabel} · web_search`, 600);
+    addTraceLine('CALL', `${modelLabel} · ${intensityLabel} · ${horizonteLabel}`, 600);
   }
 
   try {
@@ -1642,7 +1679,7 @@ huntBtn.addEventListener('click', async () => {
     for(let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       if(huntCancelled) throw new Error('Búsqueda cancelada por el usuario.');
       try {
-        result = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent, []);
+        result = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent, [], horizonte);
         break;
       } catch(e) {
         const isRetryable = (e.message.includes('503') || e.message.includes('high demand') || e.message.includes('UNAVAILABLE') || e.message.includes('TIMEOUT')) && !e.message.includes('429') && !e.message.includes('quota');
@@ -1773,8 +1810,8 @@ huntBtn.addEventListener('click', async () => {
 
     // ══ AUTO-CONTINUACIÓN: si hay pocas convocatorias y es Gemini, buscar más ══
     const isGemini = modelId.startsWith('gemini');
-    const MIN_TARGET = 8;
-    const MAX_ROUNDS = 2;
+    const MIN_TARGET = intensity === 'profunda' ? 18 : intensity === 'normal' ? 12 : 8;
+    const MAX_ROUNDS = intensity === 'profunda' ? 4 : 3;
     if(isGemini && opportunities.length < MIN_TARGET && opportunities.length > 0 && !huntCancelled) {
       let allOpps = [...opportunities];
       for(let round = 1; round <= MAX_ROUNDS; round++) {
@@ -1788,7 +1825,7 @@ huntBtn.addEventListener('click', async () => {
         document.getElementById('results').classList.add('active');
 
         try {
-          const contResult = await callAgent(profile, sources, selectedLines, sourcesWithUrls, [], modelId, intensity, false, [], found);
+          const contResult = await callAgent(profile, sources, selectedLines, sourcesWithUrls, [], modelId, intensity, false, [], found, horizonte);
           // Parse continuation results using same logic
           let contText = contResult.text || '';
           contText = contText.replace(/```json/gi,'').replace(/```/g,'').replace(/\[cite:\s*[\d,\s]+\]/g, '').replace(/\*\*/g, '');
@@ -1801,8 +1838,17 @@ huntBtn.addEventListener('click', async () => {
                 const contParsed = JSON.parse(contJson);
                 if(Array.isArray(contParsed)) {
                   // Filtrar duplicados por título
-                  const existingTitles = new Set(allOpps.map(o => (o.title||'').toLowerCase()));
-                  const newOpps = contParsed.filter(o => o.title && !existingTitles.has(o.title.toLowerCase()));
+                  const existingUrls = new Set(allOpps.map(o => (o.url||'').toLowerCase().replace(/\/$/, '')).filter(Boolean));
+                  const existingTitles = new Set(allOpps.map(o => (o.title||'').toLowerCase().trim()));
+                  const newOpps = contParsed.filter(o => {
+                    if(!o.title) return false;
+                    const url = (o.url||'').toLowerCase().replace(/\/$/, '');
+                    const title = o.title.toLowerCase().trim();
+                    // Duplicado solo si coincide URL exacta O título exacto
+                    if(url && existingUrls.has(url)) return false;
+                    if(existingTitles.has(title)) return false;
+                    return true;
+                  });
                   allOpps = allOpps.concat(newOpps);
                   addTraceLine('FOUND', `+${newOpps.length} nuevas convocatoria(s) (total: ${allOpps.length})`, 0);
                 }
