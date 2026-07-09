@@ -167,7 +167,7 @@ async def handle_gemini(data, model):
     gemini_body = {
         "contents": [{"role": "user", "parts": [{"text": user_msg.strip()}]}],
         "tools": [{"google_search": {}}],
-        "generationConfig": {"maxOutputTokens": min(data.get("max_tokens", 8000), 65536), "temperature": 0.7},
+        "generationConfig": {"maxOutputTokens": 65536, "temperature": 0.7},
     }
     if system_text:
         gemini_body["system_instruction"] = {"parts": [{"text": system_text}]}
