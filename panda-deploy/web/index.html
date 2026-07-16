@@ -329,7 +329,7 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
   <div class="hero-content">
     <div class="hero-eyebrow">Convocatorias vigentes verificadas</div>
     <h1>Radar de<br><em>Oportunidades</em><br>Estratégicas</h1>
-    <p class="hero-desc">Agente IA que escanea 107 fuentes nacionales e internacionales y empareja convocatorias vigentes con el perfil real de investigadores, grupos y observatorios de la <strong>URosario</strong>.</p>
+    <p class="hero-desc">Agente IA que busca en toda la web y empareja convocatorias vigentes con el perfil real de investigadores, grupos y observatorios de la <strong>URosario</strong>.</p>
   </div>
   <div class="hero-radar">
     <svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
@@ -560,10 +560,10 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
 <div class="sources-trigger">
   <button class="sources-btn" onclick="openModal()">
     <div style="display:flex;align-items:center;gap:4px">
-      <span class="sources-label">// Fuentes a rastrear</span>
-      <span class="sources-count" id="sourceTriggerCount">107/107 activas</span>
+      <span class="sources-label">// Fuentes de referencia</span>
+      <span class="sources-count" id="sourceTriggerCount" style="background:var(--gray-light);color:var(--gray-mid);" title="Estas son fuentes de referencia — el Panda busca en toda la web, no solo en estas">+ toda la web</span>
     </div>
-    <span class="sources-edit">Ver y editar →</span>
+    <span class="sources-edit">Ver →</span>
   </button>
 </div>
 
@@ -641,7 +641,7 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
         <button class="modal-sm-btn" onclick="selectAllModal()">Seleccionar todo</button>
         <button class="modal-sm-btn" onclick="deselectAllModal()">Deseleccionar todo</button>
       </div>
-      <span class="modal-active-count" id="activeCount">(107/107 activas)</span>
+      <span class="modal-active-count" id="activeCount" title="Fuentes de referencia — no limitan la búsqueda">(fuentes de referencia)</span>
     </div>
     <div class="modal-body" id="modalBody">
       <!-- categorías generadas por JS -->
@@ -656,7 +656,7 @@ body{font-family:'Barlow',sans-serif;background:var(--cream);color:var(--gray-te
       <div class="add-source-msg" id="addSourceMsg"></div>
     </div>
     <div class="modal-footer">
-      <span class="modal-footer-count" id="modalFooterCount">107 fuentes activas</span>
+      <span class="modal-footer-count" id="modalFooterCount" style="font-size:10px;color:var(--gray-mid);">El Panda busca en toda la web — estas son referencias adicionales</span>
       <button class="modal-footer-btn" onclick="closeModal()">Confirmar selección</button>
     </div>
   </div>
@@ -881,7 +881,7 @@ function updateActiveCount() {
   const trig = document.getElementById('sourceTriggerCount');
   if(trig) trig.textContent = `${active}/${total} activas`;
   const foot = document.getElementById('modalFooterCount');
-  if(foot) foot.textContent = `${active} fuentes activas`;
+  if(foot) foot.textContent = `${active} fuentes de referencia seleccionadas (+ búsqueda libre en toda la web)`;
 }
 
 function openModal() {
@@ -1018,7 +1018,11 @@ function renderOpportunities(opportunities) {
     const oppAspectos = Array.isArray(opp.aspectos_importantes) ? opp.aspectos_importantes : [];
     const oppFuenteUsuario = opp.fuente_usuario === true;
     const oppNuevoAliado = opp.nueva_organizacion_aliada || null;
-    const oppUrl     = g(opp,'url','link','enlace','href');
+    const oppUrlRaw  = g(opp,'url','link','enlace','href');
+    // Validar URL: marcar si viene de agregadores de pago o parece inventada
+    const PAYWALL_DOMAINS = ['devex.com','fundsforngos.org','grantwatch.com','instrumentl.com','candid.org','pivot-rp.com','grantforward.com','research-professional.com'];
+    const isPaywalled = PAYWALL_DOMAINS.some(d => (oppUrlRaw||'').toLowerCase().includes(d));
+    const oppUrl = isPaywalled ? '' : oppUrlRaw; // Limpiar URLs de pago
     const oppScore   = opp.score ?? opp.puntaje ?? opp.afinidad ?? null;
     const oppKws     = opp.keywords || opp.palabras_clave || opp.temas || [];
 
@@ -1031,7 +1035,7 @@ function renderOpportunities(opportunities) {
     }
 
     // Guardar normalizado para mailing e historial
-    currentOpps.push({title:oppTitle,source:oppSource,type:oppType,amount:oppAmount,deadline:oppDeadline,status:oppStatus,days:oppDays,desc:oppDesc,fit:oppFit,aspectos:oppAspectos,url:oppUrl,score:oppScore,kws:oppKws,elig:oppElig,fuenteUsuario:oppFuenteUsuario,nuevoAliado:oppNuevoAliado});
+    currentOpps.push({title:oppTitle,source:oppSource,type:oppType,amount:oppAmount,deadline:oppDeadline,status:oppStatus,days:oppDays,desc:oppDesc,fit:oppFit,aspectos:oppAspectos,url:oppUrl,score:oppScore,kws:oppKws,elig:oppElig,fuenteUsuario:oppFuenteUsuario,nuevoAliado:oppNuevoAliado,isPaywalled});
 
     const scoreHigh = oppScore >= 75 ? 'high' : '';
     card.innerHTML = `
@@ -1062,7 +1066,7 @@ function renderOpportunities(opportunities) {
       ${oppElig?`<div class="opp-fit" style="background:rgba(77,255,145,0.06);border-left:3px solid #4dff91;margin-bottom:8px;"><div class="opp-fit-label" style="color:#1a6b40;">✓ Elegibilidad verificada</div><div class="opp-fit-content">${oppElig}</div></div>`:''}
       ${oppAspectos.length?`<div class="opp-fit" style="background:#fafaf8;border-left:3px solid #ccc;margin-bottom:8px;"><div class="opp-fit-label" style="color:#555;">⊞ Aspectos importantes</div><div class="opp-fit-content"><ol style="margin:4px 0 0 16px;padding:0;font-size:12px;line-height:1.75;color:#555;">${oppAspectos.map(a=>`<li style="margin-bottom:2px;">${a}</li>`).join('')}</ol></div></div>`:''}
       ${oppFit?`<div class="opp-fit"><div class="opp-fit-label">⌬ Match URosario</div><div class="opp-fit-content">${oppFit}</div></div>`:''}
-      ${oppUrl?`<a href="${oppUrl}" target="_blank" class="opp-link">Ver convocatoria oficial →</a>`:''}`;
+      ${oppUrl?`<a href="${oppUrl}" target="_blank" class="opp-link">Ver convocatoria oficial →</a>`:isPaywalled?`<div style="padding:8px 12px;background:#fff3cd;border-left:3px solid #ffc107;font-size:11px;color:#856404;">⚠️ URL de origen requería membresía — busca la convocatoria directamente en el sitio oficial de <strong>${oppSource}</strong></div>`:''}` ;
     container.appendChild(card);
   });
   document.getElementById('results').classList.add('active');
@@ -1073,6 +1077,19 @@ async function callAgent(profile, sources, selectedLines, sourcesWithUrls=[], ma
   const profileContext = buildProfileContext(profile.unit);
   const today = new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
   const todayISO = new Date().toISOString().split('T')[0];
+  const dayOfWeek = new Date().getDay(); // 0=dom, 1=lun, ... 6=sab
+  const weekNum = Math.ceil(new Date().getDate() / 7);
+  // Rotar ángulo de búsqueda según el día para no repetir resultados
+  const searchAngles = [
+    'fondos y grants de fundaciones privadas internacionales',
+    'cooperación bilateral y multilateral para universidades',
+    'convocatorias de agencias de gobierno e instituciones públicas',
+    'becas, fellowships y programas de investigación',
+    'convocatorias de redes académicas y think tanks',
+    'oportunidades de innovación social y emprendimiento social',
+    'fondos de organismos internacionales ONU BID BM'
+  ];
+  const todayAngle = searchAngles[dayOfWeek];
 
   // Configuración de intensidad
   const isGeminiModel = modelId.startsWith('gemini');
@@ -1118,11 +1135,13 @@ NUNCA incluyas convocatorias cuya apertura sea posterior al ${horizonISO}.`}
 ⚠️ REGLA CRÍTICA DE ELEGIBILIDAD — 5 CRITERIOS OBLIGATORIOS:
 
 1. QUIÉN PUEDE APLICAR (AL MENOS UNO):
-   ✅ Universidades colombianas (públicas o privadas)
-   ✅ Instituciones de educación superior
-   ✅ Organizaciones sin ánimo de lucro (como la Universidad del Rosario)
-   ✅ Entidades académicas o de investigación de países en desarrollo
-   ❌ EXCLUIR: convocatorias solo para empresas con lucro, solo personas naturales, o que excluyan universidades y Colombia
+   ✅ Universidades colombianas como entidad líder
+   ✅ URosario como co-investigador, socio o partner internacional (aunque el PI sea europeo/británico/etc.)
+   ✅ Organizaciones sin ánimo de lucro colombianas
+   ✅ Entidades académicas de países en desarrollo en cualquier rol
+   ✅ Colombia como miembro de consorcios internacionales
+   ESTO INCLUYE: British Academy, Horizonte Europa, DFG, ANR, NWO, SSHRC, ARC y similares donde se requiere PI del país financiador pero aceptan socios internacionales
+   ❌ EXCLUIR SOLO SI la convocatoria prohíbe EXPLÍCITAMENTE la participación de entidades colombianas
 
 2. TIPO DE ACTIVIDAD (AL MENOS UNO):
    ✅ Investigación aplicada, I+D, investigación-acción
@@ -1143,6 +1162,7 @@ NUNCA incluyas convocatorias cuya apertura sea posterior al ${horizonISO}.`}
 ${urlsOnlyMode ? `⏱ MODO SOLO ANÁLISIS:
 NO realices búsquedas web adicionales. Solo analiza las URLs que el usuario te proporciona. Para cada URL genera la ficha completa: título, fuente, monto, fecha, descripción, aspectos importantes, elegibilidad, fit_urosario, score y keywords.` : isGemini ? `⏱ INSTRUCCIÓN DE BÚSQUEDA — COSECHA MASIVA (meta: ${cfg.target}+ convocatorias):
 Usa tu Google Search integrado para encontrar la MAYOR CANTIDAD posible de convocatorias diversas.
+ÁNGULO DE HOY (${today}): Prioriza buscar en ${todayAngle}. Esto garantiza variedad con respecto a búsquedas anteriores.
 COSECHA SISTEMÁTICA — busca en CADA una de estas 12 temáticas y trae opciones de TODAS:
 1. Paz, conflicto y justicia transicional  2. Democracia y gobernanza  3. Territorio y ambiente  4. Migración  5. Género y diversidad  6. Derechos humanos  7. Digital, IA y comunicación  8. Educación  9. Salud pública  10. Cultura y memoria  11. Relaciones internacionales y cooperación  12. Ciencia, tecnología e innovación social
 Trae AL MENOS 1-2 convocatorias por temática que tengan opciones vigentes o próximas. La meta es DIVERSIDAD y CANTIDAD — no te limites a una temática. No digas que no puedes buscar — TÚ TIENES búsqueda web integrada.` : `⏱ PRESUPUESTO DE BÚSQUEDA — ESTRICTO:
@@ -1347,12 +1367,38 @@ Devuelve SOLO el array JSON puro, sin markdown, sin texto antes ni después.` : 
 - Palabras clave: ${profile.palabras||'según perfil institucional'}
 - Líneas/observatorios prioritarios: ${selectedLines.length>0?selectedLines.join(', '):'todas las disponibles según el perfil'}
 
-⚡ INSTRUCCIÓN PRINCIPAL: Busca libremente en TODA la web. NO te limites a ninguna lista de fuentes. Usa múltiples queries en español, inglés y otros idiomas. Varía los ángulos de búsqueda.
+⚡ INSTRUCCIÓN PRINCIPAL: Busca libremente en TODA la web con queries VARIADOS cada vez. NUNCA repitas los mismos términos de búsqueda de sesiones anteriores. Rota entre temáticas, idiomas y tipos de financiadores.
 
-PISTAS DE BÚSQUEDA (opcionales — úsalas si te faltan ideas, no como límite):
-${sources.slice(0,20).join(', ')}${sources.length>20?` ... y ${sources.length-20} más`:''}
+❌ SITIOS PROHIBIDOS — NO incluyas convocatorias de estos portales de pago o agregadores:
+devex.com, fundsforngos.org, grantwatch.com, instrumentl.com, candid.org, foundationdirectory.org, pivot-rp.com, grantforward.com, grants.gov (solo para entidades USA), research-professional.com, europeanfunding.eu — estos requieren membresía y el usuario no puede acceder.
 
-RECUERDA: las mejores convocatorias pueden estar en fuentes que NO están en esa lista. Busca también en: Devex, FundsforNGOs, Foundation Directory, EURAXESS, sitios de embajadas, portales de fundaciones privadas, agencias de cooperación, repositorios de grants universitarios.
+✅ FUENTES PREFERIDAS (acceso abierto, links directos):
+Sitios OFICIALES de las organizaciones financiadoras: fondos.gov.co, minciencias.gov.co, ue.eu, british council.org, daad.de, giz.de, ford foundation.org, open society.org, clacso.org, pnud.org, aecid.es, idrc.ca, norad.no, wellcome.org, rockefellerfoundation.org
+
+⚠️ REGLA CRÍTICA DE URLs — LA MÁS IMPORTANTE:
+La URL es el campo más valioso para el usuario. Una URL incorrecta hace inútil la convocatoria.
+
+JERARQUÍA (usa la más específica disponible):
+1. IDEAL: URL exacta de la página de la convocatoria con términos de referencia
+   Ej: https://www.thebritishacademy.ac.uk/funding/schemes/knowledge-frontiers-international-interdisciplinary-research/
+2. ACEPTABLE: Página de grants/funding del financiador
+   Ej: https://www.fordfoundation.org/work/our-grants/
+3. ÚLTIMO RECURSO: Solo el home si no encuentras nada más
+   Ej: https://www.giz.de — y aclara en la descripción dónde buscar dentro del sitio
+
+REGLAS OBLIGATORIAS:
+- Si tu búsqueda devolvió una URL específica de la convocatoria → ÚSALA EXACTAMENTE como apareció
+- Si solo tienes el nombre → busca "[nombre convocatoria] site:[dominio financiador]" para la URL exacta
+- NUNCA construyas una URL concatenando partes que no verificaste
+- NUNCA uses URLs de Devex, FundsforNGOs u otros agregadores — siempre la fuente original
+- Si en la descripción mencionas "para más información visita..." → esa URL va en el campo url
+
+✅ ELEGIBILIDAD AMPLIADA — INCLUYE convocatorias donde URosario pueda participar como:
+- Aplicante principal (la universidad aplica directamente)
+- Co-investigador o socio internacional (ej: British Academy, Horizonte Europa, DFG, ANR, NWO)
+- Implementador local de un proyecto internacional  
+- Entidad colombiana en consorcio multinacional
+Esto AMPLÍA enormemente el universo de convocatorias disponibles.
 ${sourcesWithUrls.length>0?`\nURLs específicas a rastrear:\n${sourcesWithUrls.map(s=>`  • ${s.name}: ${s.url}`).join('\n')}`:''}
 ${manualUrls.length>0 ? (extractedContent.length>0 ?
 `\nURLs del usuario CON CONTENIDO EXTRAÍDO — analiza el contenido real de cada página:
@@ -1370,12 +1416,20 @@ ${manualUrls.map((u,i)=>'  '+(i+1)+'. '+u).join('\n')}`) : ''}
 
 CRITERIOS OBLIGATORIOS — SOLO incluye convocatorias que cumplan TODOS los siguientes:
 
-✅ CRITERIO 1 — ELEGIBILIDAD (AL MENOS UNA debe cumplirse):
-• Universidades colombianas pueden aplicar, O
-• Instituciones de educación superior pueden aplicar, O
-• Organizaciones sin ánimo de lucro (como la Universidad del Rosario) pueden aplicar, O
-• Entidades académicas o de investigación de países en desarrollo pueden aplicar
-❌ DESCARTA: convocatorias exclusivas para empresas con ánimo de lucro, solo para personas naturales, o que excluyan explícitamente a universidades o Colombia.
+✅ CRITERIO 1 — ELEGIBILIDAD AMPLIADA (AL MENOS UNA debe cumplirse):
+• Universidades colombianas pueden aplicar directamente como entidad líder, O
+• URosario puede participar como co-investigador, socio o implementador internacional (aunque el PI deba ser europeo, británico, etc.), O
+• Organizaciones sin ánimo de lucro pueden aplicar, O
+• Entidades académicas de países en desarrollo son elegibles, O
+• Consorcios internacionales donde Colombia puede ser miembro socio
+
+EJEMPLOS que SÍ aplican con esta regla:
+- British Academy Knowledge Frontiers (PI en UK, URosario como co-investigador colombiano) ✅
+- Horizonte Europa (PI en Europa, URosario como partner) ✅
+- DFG Alemania, ANR Francia, NWO Países Bajos con socios internacionales ✅
+- Convocatorias bilaterales donde una institución colombiana es el socio ✅
+
+❌ DESCARTA SOLO SI la convocatoria excluye EXPLÍCITAMENTE la participación de entidades colombianas en cualquier rol.
 
 ✅ CRITERIO 2 — TIPO DE ACTIVIDAD (AL MENOS UNA):
 • Investigación aplicada, ciencia básica, I+D, investigación-acción
@@ -1659,7 +1713,7 @@ huntBtn.addEventListener('click', async () => {
   } else {
     addTraceLine('OBSERVE', `Unidad: ${unitLabel} · ${selectedLines.length>0?selectedLines.length+' líneas priorizadas':'todas las líneas'}`, 0);
     addTraceLine('CONTEXT', 'Perfil institucional cargado: grupos, observatorios y aliados', 200);
-    addTraceLine('PLAN', `${sources.length} fuentes activas${manualUrls.length>0?` + ${manualUrls.length} URL(s) del usuario`:''}`, 400);
+    addTraceLine('PLAN', `Búsqueda libre en toda la web${manualUrls.length>0?` + ${manualUrls.length} URL(s) del usuario`:''}`, 400);
     addTraceLine('CALL', `${modelLabel} · ${intensityLabel} · ${horizonteLabel}`, 600);
   }
 
@@ -1886,6 +1940,10 @@ huntBtn.addEventListener('click', async () => {
     hideSpinner();
     showDone(opportunities.length);
     addTraceLine('REPORT', `🎯 El Panda ha cazado ${opportunities.length} convocatoria(s)`, 0);
+
+    // Verificar URLs en segundo plano con Firecrawl (no bloquea el render)
+    verifyUrls(opportunities);
+
     // Guardar búsqueda en historial
     saveSearchToHistory({
       unit: selectedUnit,
@@ -2497,6 +2555,31 @@ function updateUrlsCount(){
   const invalid=total-urls.length;
   document.getElementById('urlsCount').innerHTML=`<strong>${urls.length}</strong> URL(s) válida(s) agregada(s)${invalid>0?` · ${invalid} línea(s) ignorada(s) (formato inválido)`:''}`;
   document.getElementById('urlsBtn').classList.toggle('has-urls', urls.length>0);
+}
+
+// ══ VERIFICACIÓN DE URLs ══
+async function verifyUrls(opportunities) {
+  const cards = document.querySelectorAll('.opportunity');
+  if(!cards.length) return;
+  for(let i = 0; i < currentOpps.length; i++) {
+    const opp = currentOpps[i];
+    if(!opp.url) continue;
+    try {
+      const u = new URL(opp.url);
+      const pathParts = u.pathname.split('/').filter(Boolean);
+      const isHomepage = pathParts.length <= 1;
+      if(isHomepage && cards[i]) {
+        const linkEl = cards[i].querySelector('.opp-link');
+        if(linkEl) {
+          linkEl.style.background = '#fff3cd';
+          linkEl.style.color = '#856404';
+          linkEl.style.border = '1px solid #ffc107';
+          linkEl.textContent = '⚠️ Ver sitio del financiador (busca la convocatoria allí)';
+          linkEl.title = 'La URL encontrada es el home del financiador, no la página específica de la convocatoria';
+        }
+      }
+    } catch(_) {}
+  }
 }
 
 // ══ ALIADOS SUGERIDOS ══
