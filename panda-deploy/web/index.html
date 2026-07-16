@@ -1481,7 +1481,11 @@ ${isGemini ? `PROCESO:
 
 DIVERSIFICA: si ya encontraste convocatorias de paz y democracia, busca en temáticas del portafolio que aún no hayas explorado: ambiente, digital, salud, género, migraciones, cultura, educación, ciencia y tecnología.
 Prefiero 8 convocatorias DIVERSAS de múltiples fuentes que 8 del mismo donante.
-${excludeTitles.length>0?`\n⚠ CONVOCATORIAS YA ENCONTRADAS — NO LAS REPITAS:\n${excludeTitles.map((t,i)=>(i+1)+'. '+t).join('\n')}\nBusca en OTRAS fuentes, OTROS idiomas y OTROS financiadores.`:''}`;
+${excludeTitles.length>0?`
+⛔ CONVOCATORIAS YA MOSTRADAS ANTERIORMENTE — PROHIBIDO REPETIRLAS:
+El usuario ya vio estas convocatorias en búsquedas anteriores. NO las incluyas bajo ninguna circunstancia, aunque parezcan relevantes:
+${excludeTitles.slice(0,50).map((t,i)=>`${i+1}. ${t}`).join('\n')}
+BUSCA FUENTES COMPLETAMENTE DIFERENTES — otras organizaciones, otros países, otros programas.`:''}`;
 
   const messages = [{role:'user', content:userPrompt}];
   let finalText = '';
@@ -1689,6 +1693,10 @@ huntBtn.addEventListener('click', async () => {
   const horizonteLabel = document.getElementById('horizonte').selectedOptions[0].textContent.trim();
   const urlsOnlyMode = document.getElementById('urlsOnlyMode')?.checked && manualUrls.length > 0;
 
+  // Cargar memoria de convocatorias ya vistas
+  const seenOpps = getSeenOpps();
+  const seenList = [...seenOpps].slice(-100); // últimas 100 vistas
+
   // Validaciones
   if(!urlsOnlyMode && sources.length===0){ alert('Selecciona al menos una fuente para buscar.'); return; }
   if(urlsOnlyMode && manualUrls.length===0){ alert('Pega al menos una URL para usar el modo de solo análisis.'); return; }
@@ -1733,7 +1741,7 @@ huntBtn.addEventListener('click', async () => {
     for(let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       if(huntCancelled) throw new Error('Búsqueda cancelada por el usuario.');
       try {
-        result = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent, [], horizonte);
+        result = await callAgent(profile, sources, selectedLines, sourcesWithUrls, manualUrls, modelId, intensity, urlsOnlyMode, extractedContent, seenList, horizonte);
         break;
       } catch(e) {
         const isRetryable = (e.message.includes('503') || e.message.includes('high demand') || e.message.includes('UNAVAILABLE') || e.message.includes('TIMEOUT')) && !e.message.includes('429') && !e.message.includes('quota');
@@ -1941,7 +1949,10 @@ huntBtn.addEventListener('click', async () => {
     showDone(opportunities.length);
     addTraceLine('REPORT', `🎯 El Panda ha cazado ${opportunities.length} convocatoria(s)`, 0);
 
-    // Verificar URLs en segundo plano con Firecrawl (no bloquea el render)
+    // Guardar en memoria de vistas para no repetir en futuras búsquedas
+    addSeenOpps(opportunities);
+
+    // Verificar URLs en segundo plano
     verifyUrls(opportunities);
 
     // Guardar búsqueda en historial
@@ -2380,7 +2391,11 @@ function renderHistory() {
   if(cnt) cnt.textContent = hist.length;
   if(!body) return;
 
-  let html = '';
+  const seenCount = getSeenCount();
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:8px 12px;background:rgba(244,208,63,0.08);border:1px solid rgba(244,208,63,0.2);">
+    <span style="font-size:11px;color:var(--gray-mid);">🧠 Memoria: <strong style="color:var(--black);">${seenCount}</strong> convocatorias ya vistas (no se repetirán)</span>
+    <button class="hist-btn" onclick="clearSeenOpps()" style="font-size:9px;" title="Limpiar memoria para volver a ver todas las convocatorias">🗑 Limpiar memoria</button>
+  </div>`;
 
   // Local history
   if(hist.length === 0) {
@@ -2561,6 +2576,8 @@ function updateUrlsCount(){
 async function verifyUrls(opportunities) {
   const cards = document.querySelectorAll('.opportunity');
   if(!cards.length) return;
+
+  // Verificar visualmente cuáles son homepages
   for(let i = 0; i < currentOpps.length; i++) {
     const opp = currentOpps[i];
     if(!opp.url) continue;
@@ -2575,10 +2592,59 @@ async function verifyUrls(opportunities) {
           linkEl.style.color = '#856404';
           linkEl.style.border = '1px solid #ffc107';
           linkEl.textContent = '⚠️ Ver sitio del financiador (busca la convocatoria allí)';
-          linkEl.title = 'La URL encontrada es el home del financiador, no la página específica de la convocatoria';
+          linkEl.title = 'La URL encontrada es el home del financiador, no la página específica';
         }
       }
     } catch(_) {}
+  }
+
+  // Si hay Firecrawl disponible, verificar URLs específicas en background
+  if(!PANDA_API_URL) return;
+  const urlsToVerify = currentOpps
+    .map((o,i) => ({url: o.url, idx: i}))
+    .filter(({url}) => {
+      if(!url) return false;
+      try {
+        const u = new URL(url);
+        return u.pathname.split('/').filter(Boolean).length > 1; // Solo URLs con path específico
+      } catch(_) { return false; }
+    })
+    .slice(0, 5); // Verificar máximo 5 para no gastar créditos
+
+  if(urlsToVerify.length === 0) return;
+
+  addTraceLine('VERIFY', `Verificando ${urlsToVerify.length} URL(s) con Firecrawl…`, 0);
+  try {
+    const r = await fetch(PANDA_API_URL.replace('/v1/messages', '/extract'), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Panda-Token': PANDA_SECRET},
+      body: JSON.stringify({urls: urlsToVerify.map(u => u.url)})
+    });
+    const data = await r.json();
+    const results = data.results || [];
+
+    results.forEach((res, i) => {
+      const {idx} = urlsToVerify[i] || {};
+      if(idx === undefined || idx >= cards.length) return;
+      const card = cards[idx];
+      const linkEl = card?.querySelector('.opp-link');
+      if(!linkEl) return;
+
+      if(!res.success || !res.content || res.content.length < 100) {
+        // URL no funciona o página vacía — marcar como no verificada
+        linkEl.style.background = '#f8d7da';
+        linkEl.style.color = '#721c24';
+        linkEl.style.border = '1px solid #f5c6cb';
+        linkEl.textContent = '⚠️ URL no verificada — busca la convocatoria directamente';
+      } else {
+        // URL verificada — marcar como confirmada
+        linkEl.style.background = 'rgba(77,255,145,0.1)';
+        linkEl.style.border = '1px solid #4dff91';
+        linkEl.textContent = '✓ Ver convocatoria oficial (verificada) →';
+      }
+    });
+  } catch(e) {
+    console.warn('PANDA · Verificación de URLs falló:', e);
   }
 }
 
@@ -2646,6 +2712,30 @@ function changeUser() {
   document.getElementById('loginEmail').value = current;
   document.getElementById('loginOverlay').style.display = 'flex';
   document.getElementById('loginErr').textContent = '';
+}
+
+// ══ MEMORIA DE CONVOCATORIAS YA VISTAS ══
+const SEEN_KEY = 'panda_seen_opps';
+function getSeenOpps() {
+  try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || '[]')); }
+  catch(_) { return new Set(); }
+}
+function addSeenOpps(opps) {
+  const seen = getSeenOpps();
+  opps.forEach(o => {
+    if(o.title) seen.add(o.title.toLowerCase().trim());
+    if(o.url && o.url.length > 10) seen.add(o.url.toLowerCase().trim());
+  });
+  // Mantener solo las últimas 500 para no saturar
+  const arr = [...seen].slice(-500);
+  localStorage.setItem(SEEN_KEY, JSON.stringify(arr));
+}
+function clearSeenOpps() {
+  localStorage.removeItem(SEEN_KEY);
+  alert('✓ Memoria de convocatorias vistas limpiada. La próxima búsqueda empezará de cero.');
+}
+function getSeenCount() {
+  return getSeenOpps().size;
 }
 
 // ── INIT ──
